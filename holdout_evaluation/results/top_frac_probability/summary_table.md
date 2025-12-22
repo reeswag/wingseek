@@ -1,0 +1,25 @@
+| Measure                                | Value                   |
+|:---------------------------------------|:------------------------|
+| Dataset size (events)                  | 26925                   |
+| Positive prevalence                    | 2.0%                    |
+| Total duration (events, h)             | 3.174                   |
+| Total duration (videos, h)             | 41.446                  |
+| Duration baseline                      | videos                  |
+| ROC AUC                                | 0.985                   |
+| Average Precision (AP)                 | 0.803                   |
+| Operational threshold                  | 0.404                   |
+| TP / FP / TN / FN                      | 533 / 3092 / 23283 / 17 |
+| Recall (TPR)                           | 96.9%                   |
+| Specificity (TNR)                      | 88.3%                   |
+| False Positive Rate (FPR)              | 11.7%                   |
+| Balanced accuracy                      | 92.6%                   |
+| Matthews corr. coeff. (MCC)            | 0.353                   |
+| Scrubbed fraction (events)             | 86.5%                   |
+| Review fraction (events)               | 13.5%                   |
+| Scrubbed fraction (duration)           | 98.4%                   |
+| Review fraction (duration)             | 1.6%                    |
+| Share bird in review (events)          | 13.3%                   |
+| Share bird in false positives (events) | 15.6%                   |
+| Brier score                            | 0.065                   |
+| Emergence events                       | 30                      |
+| Emergence recall (at OP)               | 100.0%                  |
