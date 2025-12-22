@@ -303,7 +303,7 @@ Workload % = (Duration to review / Total video duration) × 100
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.9+
 - pandas
 - numpy
 - matplotlib
