@@ -150,7 +150,7 @@ python classification_training.py --help
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.9+
 - TensorFlow 2.x
 - scikit-learn
 - pandas
@@ -177,33 +177,3 @@ Key features:
 - Optional CIFAR-10 pre-training for better initialisation
 - Class weighting for imbalanced datasets
 - Flexible threshold calibration for bat detection
-
-## Performance Tips
-
-1. **CIFAR-10 Pre-training**: Significantly improves performance for small datasets
-2. **Class Weights**: Essential for imbalanced data (default enabled)
-3. **Batch Size**: Larger batches (128-256) if GPU memory allows
-4. **Learning Rate**: Start with default (1e-4), reduce if unstable
-
-## Troubleshooting
-
-**Out of Memory:**
-- Reduce `batch_size`
-- Reduce `img_height` and `img_width`
-- Reduce `initial_filters`
-
-**Training Too Slow:**
-- Disable `pretrain_on_cifar10`
-- Reduce `k_folds`
-- Set `k_fold_val = false` for quick tests
-
-**Poor Performance:**
-- Enable `pretrain_on_cifar10`
-- Ensure `use_class_weights = true`
-- Increase `bat_weight_multiplier` for better bat recall
-- Try different `threshold_strategy` values
-
-**Threshold Calibration Fails:**
-- Ensure sufficient bat samples in validation set
-- Try different `threshold_strategy`
-- Adjust `target_precision` or `target_recall` constraints
