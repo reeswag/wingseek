@@ -1,4 +1,4 @@
-# Multi-class Image Classification Inference Pipeline
+# Inference Pipeline
 
 A prediction pipeline for applying trained multi-class models to detect bats, birds, humans, and other objects in night vision video footage. The pipeline processes motion detection crops and aggregates predictions at the sequence level.
 
@@ -8,7 +8,7 @@ A prediction pipeline for applying trained multi-class models to detect bats, bi
 - Minimum dimension filtering to exclude low-quality crops
 - Sequence-level aggregation with multiple statistical summaries
 - Moving average smoothing for temporal patterns
-- Interactive HTML visualisation with probability-based filtering
+- Interactive visualisation with probability-based filtering
 - GIF preview functionality for high-confidence detections
 - Configuration file support for reproducible inference
 
@@ -40,34 +40,7 @@ python predict.py --config my_predict_config.ini \
     --input_dir /path/to/video/motion_frames_unpadded
 ```
 
-#### With CLI Arguments Only
-
-```bash
-# Batch mode with custom threshold
-python predict.py --model_path trained_model.keras \
-    --batch_dir /path/to/videos \
-    --threshold 0.4 \
-    --html_grid \
-    --metric average
-
-# Single video with minimum dimension filter
-python predict.py --model_path trained_model.keras \
-    --input_dir /path/to/video/motion_frames_unpadded \
-    --min_dimensions 10 \
-    --threshold 0.5
-```
-
-#### Mixed Mode (CLI Overrides Config)
-
-```bash
-python predict.py --config my_predict_config.ini \
-    --model_path trained_model.keras \
-    --batch_dir /path/to/videos \
-    --threshold 0.35 \
-    --sort_grid bat
-```
-
-## Output Products
+## Outputs
 
 ### Per-Image Predictions
 
@@ -208,171 +181,37 @@ file,gif_id
 For each motion sequence, five statistics are computed for each class:
 
 1. **Average**: Arithmetic mean of all frame probabilities
-   - Best for balanced view of sequence confidence
-   - Most commonly used metric
 
 2. **Median**: Middle value of frame probabilities
-   - Robust to outlier frames
-   - Good when some frames may be poor quality
 
 3. **Minimum**: Lowest frame probability
-   - Most conservative estimate
-   - Useful for ensuring consistent detection
-
+   
 4. **Maximum**: Highest frame probability
-   - Peak detection confidence
-   - Can identify clear bat presence even in noisy sequence
 
 5. **Top-Fraction**: Mean of top 20% of frames
-   - Reduces impact of poor quality frames
-   - Balances sensitivity with noise reduction
-   - Configurable via `top_frac_mean()` function
 
-### Choosing a Metric
-
-| Metric | Use Case |
-|--------|----------|
-| Average | General-purpose, balanced assessment |
-| Median | Sequences with variable frame quality |
-| Maximum | Identifying clear positives, high sensitivity |
-| Minimum | Conservative threshold, high precision |
-| Top-Fraction | Robust to noise whilst maintaining sensitivity |
-
-## HTML Grid Features
+## Motion Grid Features
 
 ### Interactive Filtering
 
-The HTML grid provides three probability sliders:
+The motion grid provides three probability sliders:
 
 - **Bat ≥**: Show only sequences with bat probability above threshold
 - **Bird ≤**: Hide sequences with bird probability above threshold
 - **Human ≤**: Hide sequences with human probability above threshold
 
-This filtering strategy optimises for bat detection by:
-1. Requiring high bat confidence
-2. Excluding likely birds
-3. Excluding likely human activity
+### Validation Workflow
 
-### Annotation Workflow
-
-1. **Review**: Hover over tiles to preview GIF animations
-2. **Annotate**: Click label buttons to record ground truth
+1. **Review**: Hover over tiles to play animations
+2. **Annotate**: Click label buttons to record true labels
 3. **Notes**: Add free-text notes for context
-4. **Export**: Download annotations as CSV for validation
+4. **Export**: Download annotations as CSV.
 
 ### Keyboard Shortcuts
 
 - **Arrow Up/Down**: Scroll through grid
 - **Spacebar**: Toggle autoplay mode (all GIFs loop continuously)
 - **Theme Toggle Button**: Switch between light and dark modes
-
-## Common Use Cases
-
-### Standard Inference
-
-Process videos with default settings:
-
-```bash
-python predict.py --model_path model.keras \
-    --batch_dir /data/videos
-```
-
-### High-Quality Filtering
-
-Exclude small/poor quality frames:
-
-```bash
-python predict.py --config predict_config.ini \
-    --model_path model.keras \
-    --batch_dir /data/videos \
-    --min_dimensions 15
-```
-
-### Low-Threshold Screening
-
-Use conservative threshold for high recall:
-
-```bash
-python predict.py --config predict_config.ini \
-    --model_path model.keras \
-    --batch_dir /data/videos \
-    --threshold 0.2 \
-    --metric top_frac
-```
-
-### Manual Review Workflow
-
-Generate HTML grid for annotation:
-
-```bash
-python predict.py --config predict_config.ini \
-    --model_path model.keras \
-    --batch_dir /data/videos \
-    --html_grid \
-    --metric average \
-    --sort_grid bat \
-    --threshold 0.3
-```
-
-### OpenCV Preview Mode
-
-Display high-confidence detections:
-
-```bash
-python predict.py --config predict_config.ini \
-    --model_path model.keras \
-    --input_dir /data/video/motion_frames_unpadded \
-    --display_gifs \
-    --threshold 0.7 \
-    --metric max
-```
-
-## Troubleshooting
-
-### "No images in directory"
-
-**Problem:** No `.jpg`, `.jpeg`, or `.png` files found
-
-**Solution:**
-- Check `--motion_subdir` matches your directory structure
-- Verify image file extensions are lowercase
-- Ensure directory path is correct
-
-### "Mapping CSV not found"
-
-**Problem:** Cannot find `motion_log_<video_id>.csv`
-
-**Solution:**
-- Check CSV filename matches video directory name
-- Verify CSV is in the same directory as motion_frames_unpadded/
-- Run motion detection pipeline first if CSV is missing
-
-### Out of Memory
-
-**Problem:** GPU/CPU runs out of memory during inference
-
-**Solution:**
-- Reduce `batch_size` (try 16 or 8)
-- Process videos one at a time (use `--input_dir` instead of `--batch_dir`)
-- Close other applications using GPU memory
-
-### HTML Grid Empty
-
-**Problem:** Grid loads but shows no sequences
-
-**Solution:**
-- Check threshold sliders (reset to Bat ≥ 0.0, Bird ≤ 1.0, Human ≤ 1.0)
-- Verify GIFs exist in `gifs/` subdirectory
-- Check sequence predictions CSV has matching gif_ids
-
-### Missing Predictions
-
-**Problem:** Some frames show `is_na: True`
-
-**Solution:**
-- Check `min_dimensions` filter (NA frames are too small)
-- Review error log (`log.txt` in parent directory)
-- Verify images are not corrupted
 
 ## Requirements
 
@@ -389,21 +228,3 @@ Install with:
 ```bash
 pip install tensorflow numpy pandas matplotlib opencv-python imageio tqdm
 ```
-
-## Performance Tips
-
-1. **Batch Size**: Increase for faster inference (GPU permitting)
-2. **Min Dimensions**: Filter out tiny crops to reduce processing time
-3. **HTML Grid**: Generate only for specific metric if reviewing manually
-4. **Moving Average**: Adjust window size based on sequence length
-5. **Memory**: Process large batches one video at a time
-
-## References
-
-- **Top-Fraction Aggregation**: Custom metric for temporal sequence summarisation
-- **HTML Grid Design**: Interactive visualisation with probability-based filtering
-- **Moving Average**: Temporal smoothing for trend identification
-
-## Contact
-
-For questions or issues, please contact [Your Contact Info]

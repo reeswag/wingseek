@@ -323,7 +323,7 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
         ax.set_xlabel("Class", fontsize=label_size)
         ax.set_ylabel("Bounding box area [px²]", fontsize=label_size)
         ax.set_title("Distribution of bounding-box area per class", fontsize=title_size)
-        plt.suptitle("")  # Remove automatic "Boxplot grouped by" suptitle
+        plt.suptitle("")
         ax.tick_params(labelsize=tick_size)
         ax.legend()
         fig.tight_layout()

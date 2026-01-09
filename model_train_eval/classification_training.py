@@ -1084,7 +1084,7 @@ def compute_multiclass_curves(y_true_int, y_prob, present_labels):
     """
     Compute ROC and PR curves for multiclass classification.
     
-    Calculates per-class and micro/macro-averaged curves with
+    Calculates per-class and micro averaged curves with
     corresponding AUC and AP scores.
     
     Parameters

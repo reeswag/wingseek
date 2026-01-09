@@ -610,11 +610,9 @@ def merge_intervals(intervals, tol=0):
 
 def make_interval_checker(merged_intervals):
     """
-    Create efficient frame mask checker using binary search.
-
     Constructs a callable that performs O(log n) lookup to determine if
     a given frame index falls within any masked interval. Used to skip
-    pre-annotated or problematic frames during motion extraction.
+    pre-annotated frames during motion extraction.
 
     Args:
         merged_intervals: List of non-overlapping [start, end] intervals from merge_intervals
@@ -626,7 +624,6 @@ def make_interval_checker(merged_intervals):
         # Always False: no masked frames for this video
         print("No masks")
         return lambda frame: False
-    # Ensure sorted, non-overlapping (your merge_intervals already guarantees this)
     starts = [s for s, _ in merged_intervals]
     intervals = merged_intervals  # [[s,e], [s,e], ...]
 
@@ -1800,7 +1797,7 @@ def motion_comparison_tracking(frame, current_frame, total_frames, tracker=None,
         # Correct arg order: (image, learningRate, stream[, fgmask])
         cuda_mask = mog2Subtractor.apply(g, float(-1.0), stream)
 
-        # Sync before download (only needed if you use the result immediately)
+        # Sync before download
         stream.waitForCompletion()
         mog2_mask = cuda_mask.download()
     else:
@@ -2562,7 +2559,6 @@ def motion_extractor_kalman(
                 "Decode_Errors": len(decode_error_frames)
             })
 
-        # NEW: make sure we don't loop forever; respect total_frames
         while current_frame < total_frames:
             current_frame += 1
 

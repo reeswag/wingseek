@@ -317,7 +317,7 @@ def mux_with_source_audio(src_video: str, annotated_video_only: str,
     """
     1) Stream-copy attempt: OK only when audio is MP4-friendly (aac/mp3/ALAC/AC3).
     2) Fallback: re-encode audio to AAC (works for PCM/Opus/Vorbis).
-    If both fail, keep video-only so you still get a playable result.
+    If both fail, keep video-only.
     """
     duration = max(0.0, end_s - start_s)
     if duration <= 0.0005:
@@ -364,7 +364,7 @@ def mux_with_source_audio(src_video: str, annotated_video_only: str,
     print("[mux] AAC re-encode also failed; keeping video-only.")
     #if msg:  print("  copy cmd:", msg)
     if msg2: print("  aac  cmd:", msg2)
-    # Fallback: ensure you at least get the annotated video
+    # Fallback
     try:
         os.replace(annotated_video_only, out_path)
     except OSError:
@@ -415,7 +415,6 @@ def annotate_and_write_clip(
                         cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
         if ann_index:
-            # If your annotation frames are off-by-one vs. capture index, adjust here:
             rows = ann_index.get(current_f + 1, [])
             for r in rows:
                 x_min, y_min, x_max, y_max = yolo_to_pixel(r["bb"], width, height)
