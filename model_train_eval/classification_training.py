@@ -47,7 +47,6 @@ Output
 - Threshold calibration analysis plots
 - Classification reports with standard deviations across folds
 
-Author: William Rees
 Date: 17/12/2025
 """
 

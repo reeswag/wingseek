@@ -41,7 +41,6 @@ Output (output_dir):
         <video_id>_clip_1_<minutes>.mp4
         events_with_output_paths.csv
 
-Author: William Rees
 Date: 17/12/2025
 """
 

@@ -33,7 +33,6 @@ Workflow
 4. Compute summary statistics (mean, median, max, top-fraction)
 5. Generate visualisation and diagnostic outputs
 
-Author: William Rees
 Date: 17/12/2025
 """
 

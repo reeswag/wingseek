@@ -47,7 +47,6 @@ Output (plot_path):
     bounding_box_heatmap_0_other.png
     bounding_box_area_boxplot_all_classes.png
 
-Author: William Rees
 Date: 17/12/2025
 """
 

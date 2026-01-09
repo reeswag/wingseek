@@ -6,8 +6,8 @@ conda activate wingseek-cuda
 export PYTHONNOUSERSITE=1
 
 # Set the base directory
-base_dir="/media/will/Data_Analy/WP2/Output"
-model_path="/media/will/UbuntuStorage/Code/BatFinder/BatchScripts/multi_class/final/Publication_Scripts/model_train_eval/outputs/models/production_model.keras"
+base_dir="path/to/input"
+model_path="path/to/model"
 annotation_dict="dict.json"
 config="predict.ini"
 

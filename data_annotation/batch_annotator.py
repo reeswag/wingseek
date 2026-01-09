@@ -42,7 +42,6 @@ Output (output_dir):
     crops/<label>/                     # Cropped frames organised by class
     gifs/<label>/                      # GIF sequences organised by class
 
-Author: William Rees
 Date: 17/12/2025
 """
 

@@ -7,7 +7,5 @@ export PYTHONNOUSERSITE=1
 
 python motion_extraction.py \
     --config motion_extraction.ini \
-    --video-dir "/media/will/Data_Analy/WP2/Input" \
-    --analysis-dir "/media/will/Data_Analy/WP2/Output" \
-    --motion-tuner \
-    --mask-tuner
+    --video-dir "path/to/inputs" \
+    --analysis-dir "path/to/outputs"
