@@ -118,8 +118,6 @@ python classification_training.py \
 
 ## Configuration Options
 
-See [CONFIG_USAGE.md](CONFIG_USAGE.md) for complete documentation.
-
 Key configuration sections:
 - **[paths]** - Data and output directories
 - **[image]** - Image preprocessing settings
