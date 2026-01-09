@@ -6,20 +6,17 @@ Evaluates the bat detector with a pre-defined operational threshold, tracking wo
 
 This script assesses the performance of a trained bat detection model on a held-out test set that was not used during training or threshold calibration. It provides metrics for evaluating the model's ability to reduce manual review workload whilst maintaining high recall for bat detections.
 
-**Key principle:** The operational threshold must be provided externally (from cross-validation or a separate calibration set) and is NOT derived from the holdout dataset itself.
+The operational threshold must be provided externally (from cross-validation or a separate calibration set) and is NOT derived from the holdout dataset itself.
 
 ## Quick Start
 
-### 1. Edit Configuration File (Optional)
-
-### 2. Run Evaluation
 
 #### With Configuration File
 
 ```bash
 # Using config file
 python holdout_evaluation.py \
-    --config holdout_eval.ini
+    --config holdout_evaluation.ini
 ```
 #### With CLI Arguments Only
 
@@ -33,14 +30,7 @@ python holdout_evaluation.py \
     --out-dir results/holdout
 ```
 
-#### Mixed Mode (CLI Overrides Config)
-
-```bash
-python holdout_evaluation.py \
-    --config holdout_evaluation.ini \
-    --csv holdout_evaluation.csv \
-
-### 3. Paper Results Reproduction
+#### Paper Results Reproduction
 ```bash
 CSV="holdout_evaluation.csv"
 SCRIPT="holdout_evaluation.py"
@@ -87,7 +77,7 @@ done
 
 | Column | Description | Default |
 |--------|-------------|---------|
-| `notes` | Free-text annotations for emergence detection | Empty string |
+| `notes` | Text annotations, here used to highlight emergence events | Empty string |
 | `duration_s` | Event duration in seconds | `1.0` |
 
 
@@ -115,7 +105,7 @@ All parameters can be set via a `.ini` configuration file (see [example_holdout_
 | `event_col` | Event identifier column name | `file` |
 | `label_col` | Ground truth label column name | `label` |
 | `notes_col` | Free-text notes column name | `notes` |
-| `score_col` | Predicted probability column name | `average_probability` |
+| `score_col` | Predicted probability column name | `top_frac_probability` |
 
 #### Evaluation Parameters
 
@@ -133,7 +123,7 @@ All parameters can be set via a `.ini` configuration file (see [example_holdout_
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `baseline` | Workload denominator (events/videos) | `events` |
+| `baseline` | Workload denominator (events/videos) | `videos` |
 | `video_total` | Total video duration (required if baseline=videos) | None |
 
 ## Command-Line Arguments
@@ -153,7 +143,7 @@ All parameters can be set via a `.ini` configuration file (see [example_holdout_
 - Operational threshold for bat classification (0.0 to 1.0)
 - Should be derived from cross-validation or separate calibration set
 - Events with `score >= threshold` are classified as "bat"
-- Example: `--threshold 0.32`
+- Example: `--threshold 0.40`
 
 ### Optional Arguments
 

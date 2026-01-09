@@ -34,7 +34,6 @@ Key Features
 - Adaptive background modelling resilient to gradual illumination changes
 - Multi-object tracking with occlusion handling and track persistence
 - Area-based cost function for stable tracking in 3D scenes without depth information
-  (Bjerge et al., 2022)
 - Region of Interest (ROI) masking to exclude areas of repetitive background motion
 - Interactive parameter tuning interface for optimisation across different environments
 - Standardised output format compatible with deep learning annotation pipelines
@@ -770,7 +769,7 @@ The following parameters control the multi-object tracking system:
     combines spatial proximity with normalised area difference:
     cost = spatial_distance + area_weight × |area_difference|/mean_area
     This area-based approach stabilises tracking in 3D scenes without depth
-    information (Bjerge et al., 2022).
+    information.
 
 `mask_tuner_flag`:
     Enables interactive parameter tuning interface for optimisation across
@@ -1194,8 +1193,8 @@ class MultiObjectTracker:
         Combines spatial proximity with similarity in object area:
         cost = spatial_distance + area_weight × (|pred_area - det_area| / mean_area)
     
-        This formulation stabilises tracking in 3D scenes without depth information
-        (Bjerge et al., 2022). Objects at different depths exhibit different apparent
+        This formulation stabilises tracking in 3D scenes without depth information.
+        Objects at different depths exhibit different apparent
         sizes; incorporating area similarity prevents identity switches when objects
         pass near each other at different distances from the camera.
     
@@ -1212,10 +1211,6 @@ class MultiObjectTracker:
         max_distance: Maximum spatial distance for valid associations (pixels)
         area_weight: Weighting factor for area similarity in cost function
     
-    Reference:
-        Bjerge, K., et al. (2022). Real-time insect tracking and monitoring with
-        computer vision and deep learning. Remote Sensing in Ecology and
-        Conservation, 9(3), 315-327.
     """
     def __init__(self, max_unmatched_frames=10, max_distance=0.1, area_weight=0.1):
         """
@@ -1256,7 +1251,7 @@ class MultiObjectTracker:
         Combines spatial proximity with similarity in object area. The area term
         is normalised by mean area to provide scale-invariant weighting. This
         formulation stabilises tracking in 3D scenes where objects at different
-        depths exhibit different apparent sizes (Bjerge et al., 2022).
+        depths exhibit different apparent sizes.
         
         Args:
             prediction: Predicted (x, y, area) from Kalman filter

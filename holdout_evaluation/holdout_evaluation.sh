@@ -10,7 +10,7 @@ DURATION_BASELINE="videos"
 VIDEO_TOTAL="41:26:44"     # HH:MM:SS
 THRESHOLD=0.404
 # the metric columns to use as --score-col
-metrics=(average_probability median_probability min_probability max_probability top_frac_probability)
+metrics=(average_probability median_probability max_probability top_frac_probability)
 
 
 for metric in "${metrics[@]}"; do

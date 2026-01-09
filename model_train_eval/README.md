@@ -1,6 +1,6 @@
 # Classification Training Pipeline
 
-Multi-class Image Classification Training and Validation
+Image Classifier Training and Validation
 ==================================================
 
 A training pipeline for classifying images into four categories:
@@ -10,9 +10,9 @@ The pipeline implements a ResNet architecture optimised for small input images.
 Key Features
 ------------
 - Stratified Group K-Fold cross-validation to prevent site-level data leakage
-- Optional CIFAR-10 pre-training for backbone weight initialisation
+- CIFAR-10 pre-training for backbone weight initialisation
 - Class weighting to handle imbalanced datasets
-- Flexible threshold calibration strategies for the target class (bat)
+- Flexible threshold calibration strategies for the target class (here bat)
 
 Architecture
 ------------
@@ -28,17 +28,6 @@ References
 - Hu, J., et al. (2018). Squeeze-and-Excitation Networks. CVPR.
 - Loshchilov, I., & Hutter, F. (2017). SGDR: Stochastic Gradient Descent
   with Warm Restarts. ICLR.
-
-Usage
------
-With configuration file:
-    $ python classification_training.py --config config.ini
-
-With CLI arguments (overrides config file):
-    $ python classification_training.py --data_dir /path/to/data --output_dir /path/to/output
-
-Mixed usage (CLI arguments override config file values):
-    $ python classification_training.py --config config.ini --epochs 50
 
 Output
 ------
@@ -163,17 +152,3 @@ Install with:
 ```bash
 pip install tensorflow scikit-learn pandas numpy matplotlib seaborn tqdm
 ```
-
-## Architecture Details
-
-The model uses a CIFAR-style ResNet optimized for small images:
-- **Stem**: Single 3x3 convolution (no aggressive downsampling)
-- **Blocks**: Basic residual blocks with optional SE attention
-- **Pooling**: Global average pooling
-- **Head**: Dropout + softmax classifier
-
-Key features:
-- Stratified Group K-Fold cross-validation (prevents site leakage)
-- Optional CIFAR-10 pre-training for better initialisation
-- Class weighting for imbalanced datasets
-- Flexible threshold calibration for bat detection

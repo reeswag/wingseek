@@ -115,8 +115,6 @@ The script automatically handles special annotations in the `notes` field:
 - **"unclear"** → Relabelled as `unclear_bat`
 - **"shadow"** → Relabelled as `bat_shadow`
 
-These transformations occur before label propagation to individual frames.
-
 ### Output Files
 
 For each processed video directory:
@@ -190,7 +188,7 @@ Example:
 ```csv
 input,output
 /videos/site_001.mp4,site_001
-videos/site_002.MP4,site_002
+/videos/site_002.MP4,site_002
 ```
 
 ### Output Structure
@@ -245,7 +243,7 @@ The script automatically merges overlapping event windows using the specified bu
 The script preserves original audio through a two-stage muxing process:
 
 1. **Stream copy attempt:** Fast but only works with MP4-compatible audio codecs (AAC, MP3, ALAC, AC3)
-2. **AAC re-encode fallback:** Slower but handles incompatible codecs (PCM, Opus, Vorbis)
+2. **AAC re-encode fallback:** Slower but handles incompatible codecs
 3. **Video-only fallback:** If both fail, outputs video without audio
 
 ### Output CSV
@@ -275,15 +273,6 @@ A diagnostic tool for analysing bounding box dimensions in image datasets and ge
 ```bash
 python extract_BB_info.py \
     --input_dir /path/to/dataset
-```
-
-#### With Dimension Filtering and Plots
-
-```bash
-python extract_BB_info.py \
-    --input_dir /path/to/dataset \
-    --min_dimensions 10 \
-    --plot_path /path/to/output
 ```
 
 ### Input Directory Structure

@@ -3,15 +3,11 @@ Motion Detection and Tracking Pipeline
 
 Overview
 --------
-This module implements a comprehensive motion detection and tracking system for
-identifying and monitoring rare motion events in long-duration infrared video files.
-The pipeline combines classical computer vision techniques with Kalman filtering to
-provide robust object detection and tracking capabilities specifically optimised for
-bat detection in low-contrast nocturnal surveillance footage.
+This module implements a motion detection and tracking system for
+identifying and monitoring rare motion events in long-duration near-infrared video files.
 
 Key Algorithms
 --------------
-The system utilises three core algorithmic components:
 
 1. **MOG2 Background Subtraction** (Zivkovic & van der Heijden, 2006):
    An adaptive Gaussian mixture model that efficiently learns background statistics
@@ -32,7 +28,6 @@ Key Features
 - Adaptive background modelling resilient to gradual illumination changes
 - Multi-object tracking with occlusion handling and track persistence
 - Area-based cost function for stable tracking in 3D scenes without depth information
-  (Bjerge et al., 2022)
 - Region of Interest (ROI) masking to exclude areas of repetitive background motion
 - Interactive parameter tuning interface for optimisation across different environments
 - Standardised output format compatible with deep learning annotation pipelines
@@ -53,18 +48,18 @@ The processing pipeline operates as follows:
 9. **Track Management**: Tracks unmatched for N consecutive frames are terminated
 10. **Output Generation**: Tracked objects are cropped and saved with metadata
 
-For detailed methodology, refer to the Methods section of the accompanying paper.
+For detailed methodology, refer to the Supplementary Information of the accompanying paper.
 
 Library Dependencies
 --------------------
-This pipeline utilises the following core libraries:
+This pipeline uses the following core libraries:
 
 - **OpenCV (cv2)**: Provides the MOG2 background subtraction algorithm, Kalman
   filtering implementation, and morphological operations. CUDA acceleration is
   supported for GPU-enabled systems to enhance processing throughput.
 - **PIL (Python Imaging Library)**: Used for image format conversion and manipulation
   during output generation.
-- **NumPy**: Facilitates efficient array operations for mask processing, state vector
+- **NumPy**: Array operations for mask processing, state vector
   manipulation, and cost matrix computation.
 - **SciPy**: The `scipy.optimize.linear_sum_assignment` function implements the
   Hungarian algorithm for optimal track-to-detection assignment, minimising the sum
@@ -113,14 +108,6 @@ python motion_extraction.py \
     --config motion_extraction.ini \
     --mog-history 100 \
     --tracking-buffer 0.2
-```
-
-## Getting Help
-
-View all available command-line options:
-
-```bash
-python motion_extraction.py --help
 ```
 
 ## Configuration File Format
@@ -264,26 +251,4 @@ Example:
 # motion_extraction.ini contains: mog_history = 50
 # This command will use mog_history = 100 (CLI overrides INI)
 python motion_extraction.py --config motion_extraction.ini --mog-history 100
-```
-
-## Verifying Active Configuration
-
-The pipeline prints an "ACTIVE CONFIGURATION" summary at startup showing all parameter values in use:
-
-```
-================================================================================
-ACTIVE CONFIGURATION
-================================================================================
-Video Directory:          /path/to/videos
-Analysis Directory:       /path/to/output
-CSV Path:                 None
-Allowed Extensions:       avi, mp4, mts
-Archive Outputs:          False
-
-MOG2 Parameters:
-  History:                50
-  Var Threshold:          10
-  Detect Shadows:         0
-  ...
-================================================================================
 ```
