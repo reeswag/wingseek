@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Multi-class Image Classification Inference Pipeline
+Image Classification Inference Pipeline
 ====================================================
 
 A prediction pipeline for applying trained multi-class models to detect
@@ -32,8 +32,6 @@ Workflow
 3. Aggregate frame-level predictions by sequence (gif_id)
 4. Compute summary statistics (mean, median, max, top-fraction)
 5. Generate visualisation and diagnostic outputs
-
-Date: 17/12/2025
 """
 
 import os
@@ -62,8 +60,6 @@ NAME_TO_ID = {name: i for i, name in enumerate(CLASS_NAMES)}
 ID_TO_NAME = {i: name for i, name in enumerate(CLASS_NAMES)}
 SHORT_NAMES = ['bat', 'bird', 'human', 'other']   # Abbreviated names for plots
 BAT_ID  = NAME_TO_ID['bat']    # Primary class of interest
-BIRD_ID = NAME_TO_ID['bird']   # Bird class identifier
-
 
 # =============================================================================
 # FILE PARSING UTILITIES
@@ -107,10 +103,10 @@ def extract_numeric_key(filename, num=10):
 
 def extract_frame_number(filename):
     """
-    Extract frame number from filename for temporal ordering.
+    Extract frame number from filename for ordering purposes.
 
     Assumes the first numeric token in the filename corresponds to the
-    frame number within the video sequence.
+    frame number within the video sequence as per the motion_extraction pipeline.
 
     Parameters
     ----------
@@ -321,7 +317,7 @@ def top_frac_mean(probs, frac=0.20, min_frames=3):
     Notes
     -----
     If frac * N < min_frames, uses min_frames instead. This prevents
-    over-optimistic scores for very short sequences.
+    single frames dominating predictions for very short sequences.
     """
     N = len(probs)
     # Calculate number of frames to include: max(min_frames, frac * N)
@@ -566,7 +562,7 @@ def create_html_from_gifs(base_directory,
                           sequence_csv,
                           metric,
                           annotation_dictionary=None,
-                          human_map=None,           # kept for API compatibility; ignored (we use model human)
+                          human_map=None,           # kept from previous itteration of the script.
                           sorted_flag=None,
                           skipped_files=False):
     """
@@ -590,8 +586,9 @@ def create_html_from_gifs(base_directory,
         Default provides: {"bat": "Bat", "other": "Other", "bird": "Bird",
         "human": "Human"}.
     human_map : dict, optional
-        Deprecated parameter kept for backwards compatibility. Human
-        probabilities are now read from model predictions.
+        Kept for backwards compatibility. Human
+        probabilities are now read from model predictions not a separate
+        classifier.
     sorted_flag : str, optional
         If specified, sort grid by this class's probability ('bat', 'bird',
         or 'human'). Default is None (filename order).
@@ -631,7 +628,6 @@ def create_html_from_gifs(base_directory,
 
     # Set up directory paths
     gif_dir_abs = os.path.join(base_directory, 'gifs')
-    posters_abs = os.path.join(gif_dir_abs, 'posters')
     skipped_frames_directory = os.path.join(gif_dir_abs, 'skipped_frames')
 
     # Find all GIF files to display
@@ -639,7 +635,6 @@ def create_html_from_gifs(base_directory,
 
     # Create lookup dictionaries for probability values by gif_id
     # These are used for filtering and sorting
-    def _to_str(x): return str(x)
     bat_vals   = df[bat_col]   if bat_col   in df.columns else pd.Series(np.nan, index=df.index)
     bird_vals  = df[bird_col]  if bird_col  in df.columns else pd.Series(np.nan, index=df.index)
     human_vals = df[human_col] if human_col in df.columns else pd.Series(np.nan, index=df.index)
@@ -1102,11 +1097,6 @@ def process_folder(args):
     """
     Execute complete inference pipeline for one video directory.
 
-    Orchestrates the full prediction workflow: loading model, processing
-    images in batches, aggregating to sequences, computing statistics,
-    generating plots, and optionally creating HTML grids and displaying
-    high-confidence detections.
-
     Parameters
     ----------
     args : argparse.Namespace
@@ -1155,8 +1145,7 @@ def process_folder(args):
 
     Notes
     -----
-    This function is designed to be failure-tolerant: missing directories
-    are skipped with a warning rather than raising exceptions.
+    Missing directories are skipped with a warning rather than raising exceptions.
     """
     # Validate input directory exists
     if not os.path.isdir(args.crops_dir):
@@ -1186,7 +1175,7 @@ def process_folder(args):
     # BATCH INFERENCE
     # -------------------------------------------------------------------------
     preds = []
-    with tqdm(total=len(files), desc="Detecting Bats (multiclass)", unit="img") as pbar:
+    with tqdm(total=len(files), desc="Detecting Bats", unit="img") as pbar:
         for i in range(0, len(files), args.batch_size):
             batch = files[i:i+args.batch_size]
             valid_items = []
@@ -1230,7 +1219,7 @@ def process_folder(args):
 
             # Stack into batch tensor and run inference
             tensor = tf.stack([item[2] for item in valid_items], axis=0)
-            probs = model.predict(tensor, verbose=0)  # shape: [B, 4] => [bat,bird,human,other]
+            probs = model.predict(tensor, verbose=0)
 
             # Parse predictions and create records
             for (fn, gid, _), arr in zip(valid_items, probs):
@@ -1609,8 +1598,6 @@ def merge_config(config_dict, args):
 
 def main():
     """
-    Main entry point for the prediction pipeline.
-
     Parses command-line arguments and executes inference in either single-folder
     mode (--input_dir) or batch mode (--batch_dir) for processing multiple videos.
 

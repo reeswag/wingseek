@@ -1,8 +1,8 @@
 # Inference Pipeline
 
-A prediction pipeline for applying trained multi-class models to detect bats, birds, humans, and other objects in night vision video footage. The pipeline processes motion detection crops and aggregates predictions at the sequence level.
+An inference pipeline for applying trained multi-class models to detect bats, birds, humans, and other objects in night vision video footage. The pipeline processes motion detection crops and aggregates predictions at the sequence level.
 
-## Key Features
+## Features
 
 - Batch or single-folder inference mode
 - Minimum dimension filtering to exclude low-quality crops
@@ -90,10 +90,6 @@ python predict.py --config my_predict_config.ini \
 - `<video_id>_sequence_predictions_max.png`: Maximum bat probability over time
 - `<video_id>_sequence_predictions_topf.png`: Top-fraction bat probability over time
 
-Each plot shows:
-- Raw sequence probabilities (semi-transparent)
-- Moving average smoothed curve
-- Threshold reference line (red dashed)
 
 **Interactive HTML Grid:**
 - `motion_grid_<metric>_<video_id>.html`: Interactive visualisation
@@ -178,9 +174,9 @@ file,gif_id
 
 ### Summary Metrics
 
-For each motion sequence, five statistics are computed for each class:
+Five statistics are computed for each class:
 
-1. **Average**: Arithmetic mean of all frame probabilities
+1. **Average**: Mean of all frame probabilities
 
 2. **Median**: Middle value of frame probabilities
 
@@ -215,7 +211,7 @@ The motion grid provides three probability sliders:
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.9+
 - TensorFlow 2.x
 - NumPy
 - pandas
@@ -223,8 +219,3 @@ The motion grid provides three probability sliders:
 - OpenCV (cv2)
 - imageio
 - tqdm
-
-Install with:
-```bash
-pip install tensorflow numpy pandas matplotlib opencv-python imageio tqdm
-```

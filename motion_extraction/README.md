@@ -9,14 +9,11 @@ identifying and monitoring rare motion events in long-duration near-infrared vid
 Key Algorithms
 --------------
 
-1. **MOG2 Background Subtraction** (Zivkovic & van der Heijden, 2006):
-   An adaptive Gaussian mixture model that efficiently learns background statistics
-   and identifies foreground objects through pixel-wise density estimation.
+1. **MOG2 Background Subtraction** :
+   An adaptive Gaussian mixture model that efficiently learns background statistics and identifies foreground objects through pixel-wise density estimation.
 
 2. **Kalman Filtering**:
-   A recursive state estimation framework that maintains a two-dimensional velocity
-   state (vx, vy) for each tracked object, enabling prediction of object positions
-   in subsequent frames under a constant velocity motion model.
+   A recursive state estimation framework that maintains a two-dimensional velocity state (vx, vy) for each tracked object
 
 3. **Hungarian Algorithm Matching**:
    An optimal assignment method (via `scipy.optimize.linear_sum_assignment`) that
@@ -25,30 +22,28 @@ Key Algorithms
 
 Key Features
 ------------
-- Adaptive background modelling resilient to gradual illumination changes
-- Multi-object tracking with occlusion handling and track persistence
-- Area-based cost function for stable tracking in 3D scenes without depth information
+- Multi-object tracking
 - Region of Interest (ROI) masking to exclude areas of repetitive background motion
 - Interactive parameter tuning interface for optimisation across different environments
-- Standardised output format compatible with deep learning annotation pipelines
+- Standardised output format compatible with deep learning training/inference pipelines
+- Generation of a custom web interface for reviewing / labelling detection outputs.
 
-Pipeline Architecture
+Pipeline Overview
 ---------------------
 The processing pipeline operates as follows:
 
-1. **Frame Acquisition**: Sequential reading of video frames
-2. **Background Subtraction**: MOG2 generates foreground mask highlighting moving objects
-3. **Morphological Filtering**: Opening and closing operations remove sensor noise
-4. **Blob Detection**: Connected component analysis identifies distinct foreground regions
-5. **Centroid Extraction**: Bounding box centroids serve as detection coordinates
-6. **Kalman Prediction**: Each active track predicts its position for the current frame
-7. **Hungarian Matching**: Optimal assignment between predictions and detections
-8. **State Update**: Matched tracks update their Kalman state; unmatched detections
-   initialise new tracks
-9. **Track Management**: Tracks unmatched for N consecutive frames are terminated
-10. **Output Generation**: Tracked objects are cropped and saved with metadata
+1. Sequential reading of video frames
+2. MOG2 generates foreground mask highlighting moving objects
+3. Opening and closing operations remove sensor noise
+4. Blob Detection, bounding box centroids serve as detection coordinates
+5. Kalman Prediction
+6. Hungarian Matching
+7. Tracks unmatched for N consecutive frames are terminated
+8. Tracked objects are cropped and saved with metadata
 
-For detailed methodology, refer to the Supplementary Information of the accompanying paper.
+Web App
+---------------------
+The pipeline by default creates a self-contained HTML page displaying motion events in a grid layout with interactive annotation controls and CSV export. 
 
 Library Dependencies
 --------------------
@@ -110,38 +105,7 @@ python motion_extraction.py \
     --tracking-buffer 0.2
 ```
 
-## Configuration File Format
-
-The `motion_extraction.ini` file uses standard INI format with sections for each parameter category:
-
-```ini
-[InputOutput]
-video_dir = /path/to/videos
-analysis_dir = /path/to/output
-csv_path = /path/to/batch_list.csv
-allowed_exts = mp4,avi,mts
-ARCHIVE_OUTPUTS = False
-
-[MOG2]
-mog_history = 50
-var_threshold = 10
-detect_shadows = 0
-kernel_size = 5
-motion_threshold_min = 10
-motion_threshold_max = 50000
-
-[Tracking]
-min_distance_ratio = 0.01
-trigger_threshold = 15
-tracking_buffer = 0.15
-tracking_distance = 0.15
-area_weight = 0.01
-min_event_length = 3
-
-# See motion_extraction.ini for complete template with all parameters
-```
-
-## Parameter Reference
+## Parameters
 
 ### Input/Output Configuration
 

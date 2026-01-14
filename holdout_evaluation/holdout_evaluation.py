@@ -1,13 +1,11 @@
  #!/usr/bin/env python3
 """
-Holdout Evaluation — Binary Bat Detector Performance Assessment
+Holdout Evaluation — Bat Detector Performance
 ================================================================
 
-Evaluates a binary bat detector with pre-defined operational threshold, tracking
+Evaluates a bat detector with pre-defined operational threshold, tracking
 workload reduction and emergence recall.
 
-Key Points
-----------
 - Operational threshold is REQUIRED via --threshold and is NOT derived from the holdout dataset.
 
 Ground Truth Handling:
@@ -654,7 +652,7 @@ def main():
     print(f"Event duration total = {event_total_hours:.3f} h | Video duration total = {video_total_hours:.3f} h "
           f"(baseline for duration fractions: {baseline_label})")
 
-    # --- Threshold-free curves (for visualisation only) ---
+    # Threshold-free metrics
     y_true = (df["truth_bin"].astype(str) == "bat").astype(int).values
     scores = df["score"].values
 
@@ -664,7 +662,7 @@ def main():
     precision, recall, _ = precision_recall_curve(y_true, scores)
     ap_score = average_precision_score(y_true, scores)
 
-    # --- Threshold sweep (for plots/ops frontier; NOT used to pick threshold) ---
+    # Threshold sweep metrics
     uniq = np.unique(np.concatenate(([0.0], scores[~np.isnan(scores)], [1.0])))
     ts = np.linspace(0, 1, args.max_thresholds) if len(uniq) > args.max_thresholds else np.sort(uniq)
 
@@ -680,13 +678,13 @@ def main():
     thresh_df.to_csv(thresh_csv, index=False)
     print(f"Wrote: {thresh_csv}")
 
-    # --- Operating point: USE PROVIDED THRESHOLD ONLY ---
+    # Operating point evaluation
     op_t = float(args.threshold)
     if not (0.0 <= op_t <= 1.0):
         raise ValueError("--threshold must be in [0,1].")
     cm_row = metrics_at_threshold(df, op_t, duration_denominator=duration_denominator)
 
-    # --- Calibration + Brier score ---
+    # Calibration + Brier scores
     if np.any(~np.isnan(scores)):
         q = np.quantile(scores[~np.isnan(scores)], q=np.linspace(0, 1, 11))
         q = np.unique(q)
@@ -738,7 +736,7 @@ def main():
 
     ax = plt.gca()
     ymin, ymax = ax.get_ylim()
-    # vertical markers at the provided OP
+    # vertical markers at the calibrated OP
     ax.axvline(x=cm_row.scrubbed_fraction,     ymin=0, ymax=_safe_div(cm_row.recall, ymax), linestyle=":", zorder=2)
     ax.axvline(x=cm_row.scrubbed_fraction_dur, ymin=0, ymax=_safe_div(cm_row.recall, ymax), linestyle=":", zorder=2)
 
@@ -874,7 +872,7 @@ def main():
     print(f"  Review shares (events): bird={p(cm_row.share_bird_in_review)}")
 
     # Emergence
-    def maybe_pct(x): return p(x) if np.isfinite(x) else "NA"
+    def maybe_pct(x): return p(x) if np.isfinite(x) else "NA" # safely handles cases with no emergences.
     print(f"\nEmergence:")
     print(f"  Total={cm_row.emergence_total} | Recalled={cm_row.emergence_tp} | Missed={cm_row.emergence_fn} | Recall={maybe_pct(cm_row.emergence_recall)}")
 

@@ -1,27 +1,16 @@
 #!/usr/bin/env python3
 """
-Bounding Box Dimension Analysis and Diagnostic Plotting
+Bounding Box Dimension Diagnostic Plotting
 ========================================================
 
-A diagnostic tool for analysing bounding box dimensions in image datasets
-and generating visualisation plots. Useful for understanding dataset
-characteristics before training.
+A diagnostic tool for analysing bounding box dimensions in image datasets.
+Useful for understanding dataset characteristics before training.
 
-Key Features
-------------
-- Automatic class directory discovery
-- Dimension filtering with configurable minimum thresholds
-- Individual per-class dimension distribution heatmaps
-- Combined bounding box area box plots across all classes
-- Exclusion statistics for undersized images
-- Colour-blind-friendly visualisations
-
-Output Products
+Outputs
 ---------------
 - CSV with image dimensions and metadata
-- Individual hexbin heatmaps for each class showing width/height distributions
+- Hexbin heatmaps for each class showing width/height distributions
 - Combined box plot comparing bounding box areas across all classes
-- Console summary of exclusion statistics
 
 Workflow
 --------
@@ -46,8 +35,6 @@ Output (plot_path):
     bounding_box_heatmap_1_bat.png
     bounding_box_heatmap_0_other.png
     bounding_box_area_boxplot_all_classes.png
-
-Date: 17/12/2025
 """
 
 import os
@@ -66,8 +53,6 @@ import seaborn as sns
 
 def discover_class_directories(data_dir):
     """
-    Automatically discover class subdirectories in the input directory.
-
     Scans the input directory for subdirectories containing PNG images,
     treating each subdirectory as a separate class.
 
@@ -101,17 +86,15 @@ def discover_class_directories(data_dir):
 
 
 # =============================================================================
-# DIMENSION ANALYSIS
+# Plot Generation
 # =============================================================================
 
 def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_names=None):
     """
-    Analyse bounding box dimensions and generate diagnostic plots.
-
     Scans class subdirectories for PNG images, extracts dimensions, applies
-    optional filtering, and generates visualisation plots showing dimension
-    distributions and area comparisons. If class_names is not provided,
-    automatically discovers all subdirectories containing PNG files.
+    optional filtering, and generates visualisation plots.
+    If class_names is not provided, automatically discovers all subdirectories 
+    containing PNG files.
 
     Parameters
     ----------
@@ -119,8 +102,7 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
         Root directory containing class subfolders (e.g., '1_bat', '0_other').
     min_dimensions : int or None, optional
         Minimum width and height threshold. Images with either dimension
-        below this value are excluded from analysis. Default is None
-        (no filtering).
+        below this value are excluded from analysis. Default is None.
     plot_path : str or None, optional
         Directory for saving output plots. If None, plots are not generated.
         Creates directory if it doesn't exist.
@@ -145,20 +127,12 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
 
     Notes
     -----
-    Generates separate diagnostic plots for each class when plot_path is specified:
+    Generates separate plots for each class:
     1. Hexbin heatmap showing width vs height distribution for each class
     2. Box plot comparing bounding box areas across all classes
 
     Images that fail to load are skipped with warnings. Excluded images
     (due to min_dimensions) are counted and reported separately.
-
-    Examples
-    --------
-    >>> df = create_diagnostic_plot(
-    ...     data_dir='/path/to/dataset',
-    ...     min_dimensions=64,
-    ...     plot_path='/path/to/output'
-    ... )
     """
     # Discover class directories if not provided
     if class_names is None:
@@ -185,7 +159,6 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
             print(f"[WARN] Missing class directory: {class_dir} (skipping)")
             continue
 
-        # Only PNG files, so tqdm has the correct total
         image_files = [f for f in os.listdir(class_dir) if f.lower().endswith('.png')]
 
         for fname in tqdm(image_files, desc=f"Processing {label}", unit="img"):
@@ -196,11 +169,10 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
                 with Image.open(filepath) as img:
                     width, height = img.size
             except (FileNotFoundError, UnidentifiedImageError, OSError) as e:
-                # Use tqdm.write to avoid breaking the progress bar formatting
                 tqdm.write(f"[WARN] Could not open {filepath}: {e} (skipping)")
                 continue
 
-            # Apply minimum dimension filter if requested
+            # Apply minimum dimension filter
             if min_dimensions is not None:
                 if width < min_dimensions or height < min_dimensions:
                     excluded_counts[label] += 1
@@ -224,7 +196,6 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
             f"(after applying min_dimensions={min_dimensions})."
         )
 
-    # Add integer labels for convenience
     df['label_int'] = df['label'].map(name_to_id)
 
     # -------------------------------------------------------------------------
@@ -233,7 +204,6 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
     if plot_path and not df.empty:
         os.makedirs(plot_path, exist_ok=True)
 
-        # Font sizes for consistent styling
         title_size = 16
         label_size = 12
         tick_size = 10
@@ -243,9 +213,7 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
         # Reference line for model input size
         ref_lines = (64,)
 
-        # =========================================================================
-        # GENERATE INDIVIDUAL HEATMAPS FOR EACH CLASS
-        # =========================================================================
+        # Heatmap generation
         for class_label in class_names:
             df_class = df[df['label'] == class_label].copy()
             if df_class.empty:
@@ -269,7 +237,7 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
                 df_class['width'],
                 df_class['height'],
                 gridsize=80,
-                cmap='cividis',  # Colour-blind-friendly palette
+                cmap='cividis',
                 bins='log',      # Logarithmic binning for better visibility
                 mincnt=1,
             )
@@ -306,9 +274,8 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
             plt.close(fig)
             print(f"Saved heatmap for {class_label} to: {output_path}")
 
-        # =========================================================================
-        # GENERATE COMBINED BOX PLOT FOR ALL CLASSES
-        # =========================================================================
+
+        # Generate box plots
         df['area'] = df['width'] * df['height']
 
         area_output_path = os.path.join(plot_path, "bounding_box_area_boxplot_all_classes.png")
@@ -350,9 +317,6 @@ def create_diagnostic_plot(data_dir, min_dimensions=None, plot_path=None, class_
 def main():
     """
     Main entry point for the bounding box analysis tool.
-
-    Parses command-line arguments and executes dimension analysis with
-    optional diagnostic plot generation.
 
     Command-Line Usage
     ------------------

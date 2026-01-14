@@ -5,75 +5,8 @@ Motion Detection and Tracking Pipeline
 
 Overview
 --------
-This module implements a comprehensive motion detection and tracking system for
-identifying and monitoring rare motion events in long-duration infrared video files.
-The pipeline combines classical computer vision techniques with Kalman filtering to
-provide robust object detection and tracking capabilities specifically optimised for
-bat detection in low-contrast nocturnal surveillance footage.
-
-Key Algorithms
---------------
-The system utilises three core algorithmic components:
-
-1. **MOG2 Background Subtraction** (Zivkovic & van der Heijden, 2006):
-   An adaptive Gaussian mixture model that efficiently learns background statistics
-   and identifies foreground objects through pixel-wise density estimation.
-
-2. **Kalman Filtering**:
-   A recursive state estimation framework that maintains a two-dimensional velocity
-   state (vx, vy) for each tracked object, enabling prediction of object positions
-   in subsequent frames under a constant velocity motion model.
-
-3. **Hungarian Algorithm Matching**:
-   An optimal assignment method (via `scipy.optimize.linear_sum_assignment`) that
-   associates predicted track positions with current detections by minimising a cost
-   function combining spatial proximity and object area similarity.
-
-Key Features
-------------
-- Adaptive background modelling resilient to gradual illumination changes
-- Multi-object tracking with occlusion handling and track persistence
-- Area-based cost function for stable tracking in 3D scenes without depth information
-- Region of Interest (ROI) masking to exclude areas of repetitive background motion
-- Interactive parameter tuning interface for optimisation across different environments
-- Standardised output format compatible with deep learning annotation pipelines
-
-Pipeline Architecture
----------------------
-The processing pipeline operates as follows:
-
-1. **Frame Acquisition**: Sequential reading of video frames
-2. **Background Subtraction**: MOG2 generates foreground mask highlighting moving objects
-3. **Morphological Filtering**: Opening and closing operations remove sensor noise
-4. **Blob Detection**: Connected component analysis identifies distinct foreground regions
-5. **Centroid Extraction**: Bounding box centroids serve as detection coordinates
-6. **Kalman Prediction**: Each active track predicts its position for the current frame
-7. **Hungarian Matching**: Optimal assignment between predictions and detections
-8. **State Update**: Matched tracks update their Kalman state; unmatched detections
-   initialise new tracks
-9. **Track Management**: Tracks unmatched for N consecutive frames are terminated
-10. **Output Generation**: Tracked objects are cropped and saved with metadata
-
-For detailed methodology, refer to the Methods section of the accompanying paper.
-
-Library Dependencies
---------------------
-This pipeline utilises the following core libraries:
-
-- **OpenCV (cv2)**: Provides the MOG2 background subtraction algorithm, Kalman
-  filtering implementation, and morphological operations. CUDA acceleration is
-  supported for GPU-enabled systems to enhance processing throughput.
-- **PIL (Python Imaging Library)**: Used for image format conversion and manipulation
-  during output generation.
-- **NumPy**: Facilitates efficient array operations for mask processing, state vector
-  manipulation, and cost matrix computation.
-- **SciPy**: The `scipy.optimize.linear_sum_assignment` function implements the
-  Hungarian algorithm for optimal track-to-detection assignment, minimising the sum
-  of assignment costs across all matches.
-- **Pandas**: Manages metadata and detection logs in tabular format with standardised
-  YOLO bounding box coordinates.
-- **Matplotlib**: Generates heat maps for interactive Region of Interest (ROI)
-  selection, visualising motion density across the frame.
+This module implements a motion detection and tracking system specifically optimised for
+bat detection in low-contrast Near-Infrared Video footage.
 
 Configuration
 -------------
@@ -586,10 +519,11 @@ print(f"Number of input videos for batch analysis: {len(input_videos)}")
 # Event Masking for Exclusions
 # =============================================================================
 """
-If an `event_masks.csv` is provided, the pipeline will screen out specified frame windows before processing. This was used to omit the initial 30‑second buffered event windows from secondary data mining.
-- **Input format**: `event_masks.csv` with `video_id`, `start_frame`, and `end_frame` (or `start_time_s`, `end_time_s` if converted to frames using FPS). Multiple rows per video are allowed.
-- **Behaviour**: the intervals are merged (respecting any tolerance) so overlapping or adjacent windows become a single exclusion range.
-- **Effect**: frames inside the merged exclusion windows are skipped for detection/tracking, preventing buffered segments from being re-analysed or double-counted.
+If an `event_masks.csv` is provided, the pipeline will screen out specified frame windows before processing. 
+This was used to omit the initial 30‑second buffered event windows from stage-2 training under an active learning workflow.
+- input event_masks.csv` with `video_id`, `start_frame`, and `end_frame` (or `start_time_s`, `end_time_s` if converted to frames using FPS). Multiple rows per video are allowed.
+- the intervals are merged so overlapping or adjacent windows become a single exclusion range.
+- frames inside the merged exclusion windows are skipped for detection/tracking, preventing buffered segments from being re-analysed.
 """
 
 def merge_intervals(intervals, tol=0): 
@@ -610,7 +544,7 @@ def merge_intervals(intervals, tol=0):
 
 def make_interval_checker(merged_intervals):
     """
-    Constructs a callable that performs O(log n) lookup to determine if
+    Constructs a callable that performs a lookup to determine if
     a given frame index falls within any masked interval. Used to skip
     pre-annotated frames during motion extraction.
 
@@ -637,7 +571,6 @@ if "event_masks.csv" in os.listdir(video_dir):
     START_COL = "StartFrame"
     END_COL = "EndFrame"
     KEY_COL = "file"
-    # ADJACENT_TOL now configured via CLI/INI/defaults above
     
     events_masks[START_COL] = events_masks[START_COL].astype(int)
     events_masks[END_COL] = events_masks[END_COL].astype(int) 
@@ -659,16 +592,6 @@ else:
 # MOG2 Background Subtraction Parameters
 # =============================================================================
 """
-Algorithm Overview
-------------------
-The Mixture of Gaussians 2 (MOG2) algorithm (Zivkovic & van der Heijden, 2006)
-performs adaptive background subtraction by modelling each pixel as a mixture of
-Gaussian distributions. The algorithm automatically learns which distributions
-represent background and which represent foreground, updating these models
-incrementally as new frames are processed. This adaptive approach enables the
-system to handle gradual illumination changes, swaying vegetation, and other
-dynamic background elements common in outdoor video monitoring scenarios.
-
 Parameter Descriptions
 ----------------------
 The following parameters control the MOG2 background model behaviour:
@@ -695,7 +618,7 @@ Morphological Filtering Parameters
 After MOG2 generates the binary foreground mask, morphological operations remove
 sensor noise:
 
-`kernel_size` (default: 5×5 pixels):
+`kernel_size` (default: 5×5):
     Structuring element size for morphological operations. The pipeline applies:
 
     - Opening operation: Erosion followed by dilation, removing small noise blobs
@@ -703,8 +626,8 @@ sensor noise:
     - Closing operation: Dilation followed by erosion, filling small holes within
       foreground objects
 
-    These operations are essential for cleaning sensor noise in low-light infrared
-    imagery whilst preserving object boundaries.
+    These operations help clean up sensor noise and improve background subtraction
+    masking in low contrast NIR imagery.
 
 Blob Area Thresholds
 --------------------
@@ -718,10 +641,6 @@ residual noise:
     Maximum blob area. Larger regions typically represent background motion or
     frame-wide illumination changes.
 
-These thresholds were optimised using annotated bat events from ecological
-consultants across the training dataset to achieve sufficient sensitivity whilst
-minimising false positives.
-
 Scanning Parameters
 -------------------
 `rapid_scan_seconds`:
@@ -730,11 +649,6 @@ Scanning Parameters
 
 `skip_factor`:
     Frame subsampling rate for rapid scanning mode.
-
-Note
-----
-All parameters above are now configured via CLI arguments, INI file, or the
-defaults dictionary in the Configuration Initialisation section.
 """
 
 # Create MOG2 background subtractor with configured parameters
@@ -762,11 +676,7 @@ The following parameters control the multi-object tracking system:
     unmatched.
 
 `area_weight` (default: 0.1):
-    Weighting factor for area similarity in the cost function. The cost function
-    combines spatial proximity with normalised area difference:
-    cost = spatial_distance + area_weight × |area_difference|/mean_area
-    This area-based approach stabilises tracking in 3D scenes without depth
-    information.
+    Weighting factor for area similarity in the cost function. 
 
 `mask_tuner_flag`:
     Enables interactive parameter tuning interface for optimisation across
@@ -774,11 +684,6 @@ The following parameters control the multi-object tracking system:
 
 These parameters were optimised using annotated bat events to balance detection
 sensitivity with tracking stability.
-
-Note
-----
-All parameters above are now configured via CLI arguments, INI file, or the
-defaults dictionary in the Configuration Initialisation section.
 """
 
 # =============================================================================
@@ -831,29 +736,18 @@ def video_loader(path):
 
 def merge_bounding_boxes(bounding_boxes, min_distance_ratio, frame_height, frame_width):
     """
-    Efficiently merge nearby or overlapping bounding boxes using Intersection over Union (IoU).
-    
-    Prevents duplicate tracking of the same object when multiple overlapping foreground
-    blobs are detected. The algorithm buffers each bounding box by a minimum distance
-    threshold, identifies overlapping regions using a sweep-line approach with union-find
-    clustering, then merges the original (unbuffered) boxes within each cluster.
-    
-    Strategy:
-        1. Buffer each box by min_distance pixels to define proximity neighbourhood
-        2. Sort buffered boxes by x-coordinate and sweep once
-        3. Use active set and union-find to cluster overlapping buffered boxes
-        4. For each cluster, merge original (unbuffered) boxes and clip to frame bounds
-    
-    This approach ensures that objects detected as multiple fragments are consolidated
-    into single tracks, preventing the MultiObjectTracker from initiating redundant
-    tracks for the same physical object.
-    
+    Merge nearby or overlapping bounding boxes by buffering each box and then
+    clustering boxes whose buffered rectangles overlap (axis-aligned intersection).
+
+    This consolidates fragmented detections into single boxes, reducing redundant
+    tracks.
+
     Args:
         bounding_boxes: List of (x, y, w, h) tuples in pixel coordinates
-        min_distance_ratio: Buffering distance as fraction of frame diagonal
+        min_distance_ratio: Buffer distance as a fraction of min(frame_width, frame_height)
         frame_height: Video frame height (pixels)
         frame_width: Video frame width (pixels)
-    
+
     Returns:
         list: Merged bounding boxes as (x, y, w, h) tuples in original coordinates
     """
@@ -864,36 +758,25 @@ def merge_bounding_boxes(bounding_boxes, min_distance_ratio, frame_height, frame
     min_distance = float(min_distance_ratio) * float(min(frame_width, frame_height))
 
     # Prepare arrays for fast access
-    # original boxes
-    xs  = []
-    ys  = []
-    ws  = []
-    hs  = []
-    # buffered boxes (x1, y1, x2, y2)
-    bx1 = []
-    by1 = []
-    bx2 = []
-    by2 = []
+    xs, ys, ws, hs = [], [], [], []
+    bx1, by1, bx2, by2 = [], [], [], []
 
-    # precompute buffered boxes, clipped to frame
+    # Precompute buffered boxes, clipped to frame
     for (x, y, w, h) in bounding_boxes:
         xs.append(x); ys.append(y); ws.append(w); hs.append(h)
-        x1 = max(0.0, x - min_distance)
-        y1 = max(0.0, y - min_distance)
-        x2 = min(float(frame_width),  x + w + min_distance)
-        y2 = min(float(frame_height), y + h + min_distance)
+        x1 = max(0.0, float(x) - min_distance)
+        y1 = max(0.0, float(y) - min_distance)
+        x2 = min(float(frame_width),  float(x) + float(w) + min_distance)
+        y2 = min(float(frame_height), float(y) + float(h) + min_distance)
         bx1.append(x1); by1.append(y1); bx2.append(x2); by2.append(y2)
 
     n = len(bounding_boxes)
     idx = list(range(n))
+    idx.sort(key=lambda i: bx1[i])  # sort by left edge
 
-    # 2) Sort indices by buffered x1 (left edge)
-    idx.sort(key=lambda i: bx1[i])
-
-    # 3) Union-Find (Disjoint Set) for clustering overlapping boxes
-    # Each box starts in its own cluster; overlaps merge clusters
+    # Union-Find (Disjoint Set)
     parent = list(range(n))
-    rank   = [0]*n
+    rank = [0] * n
 
     def find(a):
         while parent[a] != a:
@@ -913,43 +796,34 @@ def merge_bounding_boxes(bounding_boxes, min_distance_ratio, frame_height, frame
             parent[rb] = ra
             rank[ra] += 1
 
-    # Sweep-line algorithm: process boxes left-to-right, maintaining active set
-    # Active set contains boxes whose right edge extends beyond current box's left edge
-    # This reduces overlap checks from O(n²) to O(n log n) for typical scenes
-    active = []  # list of indices (into 0..n-1) that are still overlapping in x
-    from collections import deque
-    active = deque()  # allows O(1) pops from left
-
+    # Sweep-line: maintain active boxes that still overlap in x
+    active = []
     for k in idx:
-        # drop boxes that are strictly left of current box (no x-overlap)
-        while active and bx2[active[0]] < bx1[k]:
-            active.popleft()
+        # Drop all boxes that no longer overlap current box in x
+        active = [j for j in active if bx2[j] >= bx1[k]]
 
-        # check y-overlap with active set; if also y-overlap, union
+        # For remaining active boxes, if y overlaps too, they intersect => union
         y1_k, y2_k = by1[k], by2[k]
         for j in active:
-            # y overlap?
             if not (y2_k <= by1[j] or y1_k >= by2[j]):
                 union(k, j)
 
-        # add current to active
         active.append(k)
 
-    # 4) Collect clusters and merge ORIGINAL boxes within each cluster
+    # Collect clusters and merge ORIGINAL boxes within each cluster
     clusters = {}
     for i in range(n):
         r = find(i)
         clusters.setdefault(r, []).append(i)
 
     merged = []
-    for root, inds in clusters.items():
-        # merge original boxes (not buffered), then clip
+    for inds in clusters.values():
         min_x = min(xs[i] for i in inds)
         min_y = min(ys[i] for i in inds)
         max_x = max(xs[i] + ws[i] for i in inds)
         max_y = max(ys[i] + hs[i] for i in inds)
 
-        # clip to frame
+        # Clip to frame
         min_x = max(0, int(round(min_x)))
         min_y = max(0, int(round(min_y)))
         max_x = min(frame_width,  int(round(max_x)))
@@ -965,85 +839,6 @@ def merge_bounding_boxes(bounding_boxes, min_distance_ratio, frame_height, frame
 # =============================================================================
 # Motion Tracking Implementation
 # =============================================================================
-"""
-Overview
---------
-The motion tracking system employs Kalman filtering with Hungarian algorithm
-matching to maintain consistent object identities across frames. This approach
-enables robust tracking through temporary occlusions, missed detections, and
-overlapping trajectories.
-
-KalmanTracker Class
--------------------
-Each tracked object is represented by a `KalmanTracker` instance that maintains
-a six-dimensional state vector and predicts object positions in subsequent frames:
-
-State Vector: [x, y, area, vx, vy, d_area]
-    - x, y: Object centroid position (pixels)
-    - area: Bounding box area (pixels²)
-    - vx, vy: Two-dimensional velocity state (pixels/frame)
-    - d_area: Rate of area change (pixels²/frame)
-
-Motion Model:
-    The system employs a constant velocity motion model, assuming objects maintain
-    their current velocity between frames. The transition matrix predicts the next
-    state as::
-
-        x(t+1) = x(t) + vx × Δt
-        y(t+1) = y(t) + vy × Δt
-        area(t+1) = area(t) + d_area × Δt
-        vx(t+1) = vx(t)  [constant velocity assumption]
-        vy(t+1) = vy(t)  [constant velocity assumption]
-
-Noise Parameters:
-    Process Noise Covariance:
-        Models uncertainty in the motion model (default: 0.03 × Identity)
-
-    Measurement Noise Covariance:
-        Models sensor noise in detections (default: 0.1 × Identity)
-
-    These parameters control the filter's responsiveness to new measurements versus
-    reliance on predictions. Higher process noise increases responsiveness to erratic
-    motion, whilst higher measurement noise increases reliance on the motion model.
-
-MultiObjectTracker Class
-------------------------
-The `MultiObjectTracker` manages multiple `KalmanTracker` instances and performs
-optimal assignment between predictions and detections.
-
-Cost Function:
-    Combines spatial proximity with area similarity (implemented in
-    `_calculate_distance`)::
-
-        cost = spatial_distance + area_weight × (|pred_area - det_area| / mean_area)
-
-    This formulation stabilises tracking in 3D scenes where objects at different
-    depths exhibit different apparent sizes. Without depth information, incorporating
-    area similarity prevents track identity switches when objects pass near each
-    other at different distances from the camera.
-
-Hungarian Algorithm Matching:
-    The `update` method constructs a cost matrix C[i,j] representing the cost of
-    assigning tracker i to detection j. The Hungarian algorithm (via
-    `scipy.optimize.linear_sum_assignment`) finds the assignment minimising the
-    total cost across all matches. This optimisation guarantees globally optimal
-    assignment, preventing greedy matching errors.
-
-Track Management:
-    1. Matched Detections:
-       Update corresponding Kalman filter with new measurement, reset unmatched
-       counter
-
-    2. Unmatched Detections:
-       Initialise new tracks with zero initial velocity
-
-    3. Unmatched Tracks:
-       Increment unmatched counter; terminate tracks exceeding threshold
-
-This approach handles track births (new objects entering the scene), deaths
-(objects exiting), and temporary occlusions (missed detections).
-"""
-
 class KalmanTracker:
     """
     Kalman filter tracker for a single object.
@@ -1094,7 +889,7 @@ class KalmanTracker:
             [0, 0, 0, 0, 0, 1],   # da = da (constant area change)
         ], dtype=np.float32)
 
-        # Tunables (can be adjusted per scene)
+        # Tunable noise parameters
         self.kf.processNoiseCov     = np.eye(6, dtype=np.float32) * 0.03
         self.kf.measurementNoiseCov = np.eye(3, dtype=np.float32) * 0.1
         self.kf.errorCovPost        = np.eye(6, dtype=np.float32)
@@ -1183,25 +978,16 @@ class MultiObjectTracker:
     
     Manages multiple KalmanTracker instances, performing optimal assignment between
     predicted track positions and current detections. The Hungarian algorithm minimises
-    the sum of assignment costs across all matches, guaranteeing globally optimal
-    association and preventing track identity switches.
+    the sum of assignment costs across all matches.
     
     Cost Function:
         Combines spatial proximity with similarity in object area:
         cost = spatial_distance + area_weight × (|pred_area - det_area| / mean_area)
     
-        This formulation stabilises tracking in 3D scenes without depth information.
-        Objects at different depths exhibit different apparent
-        sizes; incorporating area similarity prevents identity switches when objects
-        pass near each other at different distances from the camera.
-    
     Track Management:
         - Matched detections: Update corresponding Kalman filter, reset unmatched counter
         - Unmatched detections: Initialise new tracks with zero velocity
         - Unmatched tracks: Increment counter; terminate after threshold exceeded
-    
-    This approach handles track births, deaths, and temporary occlusions whilst
-    maintaining consistent object identities throughout video sequences.
     
     Args:
         max_unmatched_frames: Frames before terminating unmatched tracks
@@ -1230,7 +1016,7 @@ class MultiObjectTracker:
 
     def set_dt_all(self, dt: float):
         """
-        Set time step Δt in the transition model.
+        Set time step Δt in the model.
         
         Scales velocities to be per-second when dt = 1/fps. Typically set to
         1/fps for frame-by-frame processing or k/fps for subsampled processing.
@@ -1264,11 +1050,7 @@ class MultiObjectTracker:
 
     def update(self, detections, logging=False):
         """
-        Update filter with new measurement.
-        
-        Corrects predicted state using measurement, refining position and velocity
-        estimates. The Kalman gain balances prediction uncertainty against
-        measurement noise to produce optimal state estimate.
+        Update filter with new detections.
         
         Args:
             measurement: Detection as (x, y, area) tuple or array
@@ -1279,7 +1061,7 @@ class MultiObjectTracker:
             detection_to_tracker_id: {det_idx: track_id}
             detection_kinematics:    {det_idx: {"vx":..., "vy":..., "speed":...}}
         """
-        # 1) Predict all trackers
+        # Predict all trackers
         predicted_states = [trk.predict() for trk in self.trackers]
 
         detection_to_tracker_id = {}
@@ -1305,7 +1087,6 @@ class MultiObjectTracker:
                     cost[i, j] = d if d <= self.max_distance else 1e10
 
             # Hungarian algorithm finds optimal assignment minimising total cost
-            # Guarantees globally optimal solution (prevents greedy mismatches)
             matched_pairs = []
             valid_row = np.any(cost != 1e10, axis=1)
             valid_col = np.any(cost != 1e10, axis=0)
@@ -1321,7 +1102,7 @@ class MultiObjectTracker:
                 if det_idx in unmatched_detections:
                     unmatched_detections.remove(det_idx)
 
-        # 3) Update matched trackers
+        # Update matched trackers
         for trk_idx, det_idx in matched_pairs:
             self.trackers[trk_idx].update(detections[det_idx])
             self.unmatched_counts[trk_idx] = 0
@@ -1334,7 +1115,7 @@ class MultiObjectTracker:
             speed = float(np.hypot(vx, vy))
             detection_kinematics[det_idx] = {"vx": float(vx), "vy": float(vy), "speed": speed, "track_id": tid}
 
-        # 4) Handle unmatched trackers
+        # Handle unmatched trackers
         to_remove = []
         for idx in unmatched_trackers:
             self.unmatched_counts[idx] += 1
@@ -1348,7 +1129,7 @@ class MultiObjectTracker:
             if logging:
                 print(f"Tracker Removed: index={i}")
 
-        # 5) Create new trackers for unmatched detections
+        # Create new trackers for unmatched detections
         for det_idx in unmatched_detections:
             new_trk = KalmanTracker()
             self.tracker_log += 1
@@ -1389,55 +1170,8 @@ Interactive Parameter Optimisation
 -----------------------------------
 The pipeline includes an interactive tuning interface enabling real-time
 visualisation of detection performance across different parameter configurations.
-This interface was utilised to optimise the MOG2 background subtraction and
-tracking parameters for bat detection in low-contrast infrared footage.
-
-Tuning Methodology
-------------------
-Parameters for the background subtraction and Kalman filter were tuned using the
-annotated bat events provided by ecological consultants across the training data.
-The objective was to achieve sufficient sensitivity to detect all bat events
-identified within the human annotations whilst minimising false positives from
-sensor noise, vegetation motion, and other background artefacts.
-
-Interface Components
---------------------
-The tuning interface provides:
-
-1. Heat Map Generation:
-   Visualises motion density across the frame, revealing areas of repetitive
-   background motion that should be excluded via ROI masking.
-
-2. Real-time Parameter Adjustment:
-   Sliders enable dynamic modification of:
-
-   - MOG2 history length (background model temporal window)
-   - Variance threshold (foreground classification sensitivity)
-   - Blob area thresholds (noise filtering bounds)
-   - Tracking distance and buffer parameters
-
-3. Visual Feedback:
-   Side-by-side comparison of original frame and foreground mask with detected
-   bounding boxes overlaid, facilitating immediate assessment of parameter changes.
-
-Parameter Selection Strategy
-----------------------------
-The tuning process prioritised:
-
-Sensitivity:
-    Ensuring detection of all annotated bat events (minimising false negatives)
-
-Specificity:
-    Reducing false positives from noise and background motion
-
-Stability:
-    Maintaining consistent track identities through temporary occlusions
-
-Generalisation:
-    Performance across diverse environmental conditions and deployment sites
-
-Parameters were validated against held-out test sequences to ensure the optimised
-values generalise beyond the training dataset.
+This interface was used to tune the MOG2 background subtraction and
+tracking parameters for bat detection in low-contrast near-infrared footage.
 """
 
 def reset_tracker():
@@ -1630,42 +1364,22 @@ def bb_gen(mask, calibration = False):
     """
     Generate bounding boxes from foreground mask.
     
-    Extracts distinct foreground blobs from the background-subtracted mask using
-    connected component analysis. Returns bounding boxes for objects within the
-    specified area range, filtering out sensor noise and frame-wide illumination
-    changes. The centroid of each bounding box is subsequently used as the
-    detection coordinate for Kalman filter tracking.
-    
-    Morphological Processing:
-        Applies dilation with elliptical structuring element (3×3 pixels, 2 iterations)
-        to connect nearby foreground components and fill small holes within objects.
-        This operation enhances blob cohesion whilst preserving object boundaries.
-    
     Area Filtering:
         Blobs are filtered by motion_threshold_min and motion_threshold_max to remove:
         - Small regions: Residual sensor noise from the MOG2 background subtraction
         - Large regions: Background motion or frame-wide illumination changes
     
-    These thresholds were optimised using annotated bat events provided by ecological
-    consultants to achieve sufficient sensitivity whilst minimising false positives.
-    
     Args:
-        mask: Binary foreground mask from MOG2 background subtraction (uint8 array)
+        mask: Binary foreground mask from MOG2 background subtraction
         calibration: If True, prints area information for all contours regardless
                      of threshold (used during interactive parameter tuning)
     
     Returns:
         list: Bounding boxes as (x, y, width, height) tuples in pixel coordinates
-    
-    Notes:
-        The function utilises morphological dilation to enhance blob detection,
-        particularly beneficial for small, fast-moving objects in low-contrast
-        infrared footage where motion blur may fragment foreground regions.
     """
     global motion_threshold_min, motion_threshold_max
     bounding_boxes = []
-    # Morphological dilation with elliptical kernel connects nearby foreground regions
-    # Two iterations bridge small gaps caused by motion blur in infrared footage
+    # dilation to help clean the image (n.b this is additional to the kernel)
     dilated = cv2.dilate(mask,cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3)),iterations = 2)
     contours, hierarchy = cv2.findContours(dilated, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
@@ -1677,14 +1391,11 @@ def bb_gen(mask, calibration = False):
             bounding_boxes.append((x,y,w,h))
     return bounding_boxes        
 
-# motion_comparison generates combined frame with the motion mask above the input frame. Bounding boxes are dynamically drawn over each image using bb_gen if motion is detected. 
+# motion_comparison generates combined frame with the motion mask above the input frame. 
+# Bounding boxes are dynamically drawn over each image using bb_gen if motion is detected. 
 def motion_comparison(frame, current_frame, total_frames, mask=None, merge_bb=False, trigger_threshold=trigger_threshold):
     """
     Generate side-by-side comparison of input frame and motion mask.
-
-    Creates visualisation showing MOG2 foreground mask above grayscale input,
-    with bounding boxes overlaid on detected objects. Used during interactive
-    parameter tuning to assess detection quality in real-time.
 
     Args:
         frame: Input video frame (BGR)
@@ -1757,10 +1468,6 @@ def motion_comparison_tracking(frame, current_frame, total_frames, tracker=None,
     """
     Generate tracking visualisation with coloured bounding boxes per track ID.
 
-    Similar to motion_comparison but includes Kalman tracking, drawing bounding
-    boxes in unique colours per track ID to visualise trajectory consistency.
-    Displays track IDs and updates tracker state for real-time assessment.
-
     Args:
         frame: Input video frame (BGR)
         current_frame: Current frame number for display
@@ -1789,10 +1496,6 @@ def motion_comparison_tracking(frame, current_frame, total_frames, tracker=None,
 
         # Async upload on the SAME stream
         g.upload(frame_to_process, stream)
-
-        # Ensure output buffer exists and matches size/type (MOG2 mask is 8UC1)
-        #if fgmask.empty() or fgmask.size() != g.size():
-        #    fgmask.create(g.size(), cv2.CV_8UC1)
 
         # Correct arg order: (image, learningRate, stream[, fgmask])
         cuda_mask = mog2Subtractor.apply(g, float(-1.0), stream)
@@ -1836,7 +1539,6 @@ def motion_comparison_tracking(frame, current_frame, total_frames, tracker=None,
             for idx, (x, y, w, h) in enumerate(bounding_boxes):
                 if idx in detection_map:
                     track_id = detection_map[idx]
-                    # Assign a unique color for this track id if not already set.
                     if track_id not in tracker_colors:
                         tracker_colors[track_id] = tuple(np.random.randint(0, 256, 3).tolist())
                     color = tracker_colors[track_id]
@@ -1959,11 +1661,7 @@ def motion_tuner(capture, fps, total_frames, mask, merge_bb=False):
 """
 ROI Selection for Background Motion Exclusion
 ----------------------------------------------
-Whilst the MOG2 algorithm is able to dynamically learn repetitive background motion,
-through experimentation it was found to be triggered by frequent but non-continuous
-repetitive motion, for example vegetation moving in gusts of wind.
-
-To account for this, the pipeline includes an optional Region of Interest (ROI)
+The pipeline includes an optional Region of Interest (ROI)
 selection tool. The tool generates a heat map of background motion from samples
 within the video and allows the user to define ROI polygons within the image that
 exclude hot spots of background motion.
@@ -1977,22 +1675,10 @@ def heatmap_generator(
 ):
     """
     Generate motion heatmap from sampled video windows.
-
-    Processes evenly-spaced temporal samples across video duration, accumulating
-    foreground detections to visualise spatial distribution of motion. Applies
-    logarithmic compression, percentile stretching, and CLAHE enhancement for
-    optimal visualisation of both frequent and infrequent motion patterns.
-
+    
     The heatmap identifies regions of persistent motion (e.g., vegetation) for
     ROI mask creation, enabling exclusion of repetitive non-target motion from
     subsequent detection processing.
-
-    Processing Strategy:
-        1. Sample n evenly-spaced temporal windows of 'seconds' duration
-        2. Apply MOG2 background subtraction with optional morphological filtering
-        3. Accumulate binary foreground masks across all samples
-        4. Apply visualisation enhancements (log compression, stretch, CLAHE)
-        5. Overlay colourised heatmap on base frame for spatial context
 
     Args:
         capture: OpenCV VideoCapture object
@@ -2011,23 +1697,15 @@ def heatmap_generator(
 
     Returns:
         np.ndarray: Colourised heatmap overlay on base frame (None if insufficient frames)
-
-    Notes:
-        Visualisation enhancements (log compression, CLAHE) are applied only to
-        the returned image; underlying motion accumulation remains unmodified to
-        preserve detection fidelity. Turbo colourmap is preferred for perceptual
-        uniformity; falls back to HOT if unavailable.
     """
     if not capture or not capture.isOpened():
         print("Error: Video capture is not open.")
         return None
 
-    # --- pick backend deterministically ---
     if use_cuda and (not hasattr(cv2, "cuda") or cv2.cuda.getCudaEnabledDeviceCount() < 1):
         print("CUDA requested but not available; falling back to CPU.")
         use_cuda = False
 
-    # (Re)create subtractor inside to avoid passing a CPU one by accident.
     if use_cuda:
         mog2 = cv2.cuda.createBackgroundSubtractorMOG2(
             history=mog_history, varThreshold=var_threshold, detectShadows=detect_shadows
@@ -2040,7 +1718,6 @@ def heatmap_generator(
             history=mog_history, varThreshold=var_threshold, detectShadows=detect_shadows
         )
 
-    # --- plan sampling ---
     skip_frames = int(max(0, fps * skip_seconds))
     if skip_frames >= total_frames:
         print("Warning: skip_seconds >= video length; starting from 0.")
@@ -2050,12 +1727,10 @@ def heatmap_generator(
     base_image = None
     heat_layer = None
 
-    # reuse morph kernel
     kernel = None
     if kernel_size and kernel_size > 0:
         kernel = np.ones((int(kernel_size), int(kernel_size)), np.uint8)
-
-    # --- iterate sampled windows ---
+        
     for idx in tqdm(frame_indices, desc="Processing sample points", total=len(frame_indices)):
         capture.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
         ok, frame = capture.read()
@@ -2111,36 +1786,26 @@ def heatmap_generator(
     if heat_layer is None:
         return None
     
-    # Visualisation Enhancements # 
-    # Logarithmic compression lifts faint motion (infrequent events) whilst
-    # preventing saturation of hotspots (frequent motion like vegetation)
+    # Visualisation Enhancements
     heat_vis = np.log1p(heat_layer)
-
-    # Percentile stretching maps 2nd-98th percentile to full dynamic range
-    # Ignores extreme outliers for better contrast across typical motion intensities
     lo, hi = np.percentile(heat_vis, (2, 98))
-    if hi <= lo:  # degenerate case guard
+    if hi <= lo: 
         lo, hi = float(heat_vis.min()), float(heat_vis.max())
     heat_vis = np.clip(heat_vis, lo, hi)
     heat_norm = cv2.normalize(heat_vis, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-
-    # CLAHE (Contrast Limited Adaptive Histogram Equalisation) enhances local contrast
-    # Separates similar intensities in different spatial regions (e.g., multiple vegetation patches)
     heat_norm = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(heat_norm)
 
-    # 4) Motion mask (visual-only) to colorise just the moving areas
-    thr = 40  # ↑ for fewer/stronger blobs, ↓ for more/fainter
+    # Motion mask (visual-only) to colorise just the moving areas
+    thr = 40 # higher values result in higher contrast heatmaps.
     motion_mask = (heat_norm > thr).astype(np.uint8)
     if kernel is not None:
         motion_mask = cv2.morphologyEx(motion_mask, cv2.MORPH_OPEN, kernel)
         motion_mask = cv2.dilate(motion_mask, kernel, iterations=1)
     motion_mask = motion_mask.astype(bool)
 
-    # 5) High-contrast colormap
     cmap = getattr(cv2, "COLORMAP_TURBO", cv2.COLORMAP_HOT)
     col_heat_layer = cv2.applyColorMap(heat_norm, cmap)
 
-    # 6) Stronger, masked blend over slightly dimmed background
     bg = cv2.convertScaleAbs(base_image, alpha=0.72, beta=0)   # dim background a bit
     overlay = bg.copy()
     cv2.addWeighted(overlay, 0.0, col_heat_layer, 0.95, 0, dst=overlay)  # bold color
@@ -2171,10 +1836,6 @@ def draw_mask(event, x, y, flags, param):
         y: Mouse y-coordinate
         flags: OpenCV mouse event flags
         param: Optional callback parameter (unused)
-
-    Notes:
-        Modifies global 'points' list. Small drags (<3 pixels) are treated
-        as single clicks to prevent accidental rectangles from jittery input.
     """
     global points, _dragging, _start, _current
 
@@ -2212,11 +1873,7 @@ def draw_mask(event, x, y, flags, param):
 
 def find_polygons(polys):
     """
-    Compute bounding rectangle encompassing all ROI polygons.
-
-    Determines the minimal rectangular region containing all polygon vertices,
-    enabling video cropping to the region of interest. This reduces computational
-    overhead by processing only relevant frame regions.
+    finds bounding rectangle encompassing all ROI polygons.
 
     Args:
         polys: List of polygon arrays (each polygon as Nx2 point array)
@@ -2240,10 +1897,6 @@ def xywh_to_yolo(xywh, image_width, image_height):
     """
     Convert bounding box from pixel coordinates to normalised YOLO format.
 
-    Transforms (x, y, width, height) pixel coordinates to normalised centre-based
-    representation (center_x, center_y, width, height) in range [0, 1]. This
-    format is compatible with YOLO annotation tools and deep learning frameworks.
-
     Args:
         xywh: Tuple of (x, y, width, height) in pixel coordinates
         image_width: Frame width in pixels
@@ -2261,7 +1914,7 @@ def xywh_to_yolo(xywh, image_width, image_height):
 
 def _jsonable(x):
     """
-    Recursively convert NumPy types to JSON-serialisable Python types.
+    Convert NumPy types to JSON-serialisable Python types.
 
     Args:
         x: Object to convert (ndarray, numeric, list, dict, or primitive)
@@ -2282,9 +1935,6 @@ def _jsonable(x):
 def save_jsons(mask_array, polys_array, motion_params_array, out_dir=video_dir):
     """
     Persist ROI masks, polygons, and motion parameters to JSON files.
-
-    Saves interactive tuning results for reproducibility, enabling consistent
-    processing across multiple runs without manual re-configuration.
 
     Args:
         mask_array: Binary ROI mask array
@@ -2308,29 +1958,6 @@ def save_jsons(mask_array, polys_array, motion_params_array, out_dir=video_dir):
 # =============================================================================
 # Motion Extractor
 # =============================================================================
-"""
-Frame-by-Frame Motion Detection and Extraction
------------------------------------------------
-Once detection parameters have been defined, all frames within the input video are
-processed in sequence. Where objects of interest are detected, bounding boxes are
-defined around each object, which are then reformatted to user-defined minimum
-dimensions.
-
-By standardising minimum bounding box dimensions it is possible to retain some
-contextual information around the object of interest which facilitates the annotation
-process. Minimum bounding box dimensions of 224 × 224 pixels were used in this
-instance based on the resolution of the input videos.
-
-The `motion_extractor_kalman` routine returns `(motion_logs, decode_error)`, where:
-    - `motion_logs`: List of per-frame detections (filename, timestamp, bounding box
-      tuples, speed, and speed_area_normalised)
-    - `decode_error`: Flags a frame index if decoding halted early
-
-Side effects include writing cropped frames (padded and unpadded), optional
-masks/foreground cut-outs, YOLO-formatted bounding boxes, and kinematic descriptors
-used downstream for GIF creation and metrics.
-"""
-
 
 def motion_extractor_kalman(
         video_id,
@@ -2371,9 +1998,8 @@ def motion_extractor_kalman(
         10. Track Management: Terminate tracks exceeding unmatched threshold
         11. Output Generation: Crop and save frames containing tracked objects
     
-    The pipeline maintains a standardised minimum bounding box dimension (default: 224×224
-    pixels) to retain contextual information around detected objects, facilitating manual
-    annotation and improving deep learning model performance.
+    The pipeline outputs both crops for bounding boxes and buffered crops for easier human annotation (default: 224×224
+    pixels).
     
     Args:
         video_id: Unique identifier for output file naming
@@ -2401,7 +2027,7 @@ def motion_extractor_kalman(
     Output Format:
         Cropped frames saved as: {output_dir}/{video_id}_frame_{frame_num}_track_{track_id}.jpg
         Metadata CSV columns: frame, x, y, width, height, track_id, vx, vy, speed
-        Bounding boxes stored in normalised YOLO format for compatibility with annotation tools
+        Bounding boxes stored in normalised YOLO format
     
     Notes:
         All parameters were optimised using annotated bat events to achieve sufficient
@@ -2541,8 +2167,6 @@ def motion_extractor_kalman(
         # Helper to advance tracker state when skipping frame (for any reason)
         def _advance_without_frame():
             """
-            Advance tracker time step without processing frame.
-
             Updates tracker state with predict-only cycle and increments progress bar.
             Used when skipping frames due to masking, rapid scan, or decode errors.
             """
@@ -2633,7 +2257,7 @@ def motion_extractor_kalman(
                 frame_to_process = frame
                 output_frame = frame
 
-            # 2) Apply MOG2
+            # Apply MOG2
             if use_cuda:
                 g.upload(frame_to_process, stream)
                 cuda_mask = mog2Subtractor.apply(g, float(-1.0), stream)
@@ -2641,7 +2265,7 @@ def motion_extractor_kalman(
             else:
                 mog2_mask = mog2Subtractor.apply(frame_to_process, learningRate=-1.0)
 
-            # 3) Motion / bounding boxes
+            # Motion / bounding boxes
             if cv2.countNonZero(mog2_mask) > motion_threshold_min:
                 if kernel_size:
                     mog2_mask = cv2.morphologyEx(mog2_mask, cv2.MORPH_OPEN, kernel)
@@ -2683,10 +2307,10 @@ def motion_extractor_kalman(
                         area     = (w * h) / (frame_width * frame_height)
                         detections.append((center_x, center_y, area))
 
-                    # 8) Update Kalman multi-object tracker
+                    # Update Kalman multi-object tracker
                     detection_map, det_kin = tracker.update(detections)
 
-                    # 9) Crops + logging
+                    # Crops + logging
                     event_time_seconds = current_frame // fps
                     for det_idx, (x, y, w, h) in enumerate(bounding_boxes):
                         i = detection_map[det_idx]
@@ -2698,8 +2322,7 @@ def motion_extractor_kalman(
                         else:
                             x_out, y_out = x, y
 
-                        # Enforce minimum 224×224 crop size to retain contextual information
-                        # Standard size facilitates annotation and improves deep learning model performance
+                        # Minimum 224×224 crop size to retain contextual information
                         crop_w = max(w, 224)
                         crop_h = max(h, 224)
                         center_x_px = x + w // 2
@@ -2788,6 +2411,10 @@ def motion_extractor_kalman(
     # return both motion logs and the list of problematic frames
     return motion_logs, decode_error_frame
 
+# =============================================================================
+# Default Directory Structure
+# =============================================================================
+
 directory_structure = [
     "motion_frames",
     "motion_frames_unpadded",
@@ -2806,31 +2433,6 @@ if save_fg:
 # =============================================================================
 # Annotation Helper Functions
 # =============================================================================
-"""
-Detection Packaging for Annotation Workflow
---------------------------------------------
-These utilities package detections into annotation-friendly artefacts:
-
-`file_indexer`:
-    Builds a lookup from stored crops to their frame metadata, enabling parallel
-    GIF creation.
-
-`_process_event` and `gif_generator_parallel`:
-    Create buffered GIF snippets per event using the indexed crops, assigning
-    `gif_id` values that propagate into the CSV outputs.
-
-`create_html_from_gifs`:
-    Renders simple grids for qualitative review; `pack_tar` can compress a video's
-    outputs when archiving.
-
-Output Files:
-    The batch step below writes:
-
-    - `motion_log_<video_id>.csv`: Frame-level detections with YOLO boxes, timings,
-      and kinematics
-    - `<video_id>_event_metrics.csv`: Event-level durations and speed statistics
-      referenced in the manuscript tables
-"""
 def file_indexer(df):
     """
     Group motion log filenames by track index.
@@ -2898,9 +2500,6 @@ def files_to_gif(input_directory, output_directory, files, gif_id,
 def motion_log_updater(motion_log_df, updates, chunk_size=50_000, show_progress=True):
     """
     Bulk update motion log DataFrame with GIF IDs.
-
-    Efficiently applies GIF identifier mapping to motion log using chunked
-    updates to manage memory consumption for large datasets.
 
     Args:
         motion_log_df: Pandas DataFrame with 'file' column
@@ -2988,18 +2587,7 @@ def gif_generator_parallel(
 ):
     """
     Generate GIFs for all motion events using parallel processing.
-
-    Segments tracked frames into discrete motion events based on temporal
-    continuity, then generates animated GIFs for each event using process pool.
-    Events are delimited by gaps exceeding frame_buffer threshold, matching
-    the tracker's unmatched frame tolerance.
-
-    Processing Strategy:
-        1. Group frames by track index
-        2. Identify event boundaries (gaps >= frame_buffer)
-        3. Dispatch event processing to worker pool
-        4. Collect GIF IDs and update motion log DataFrame
-
+    
     Args:
         video_id: Video identifier for output naming
         motion_log_df: Pandas DataFrame with motion detection metadata
@@ -3018,7 +2606,6 @@ def gif_generator_parallel(
         extraction to ensure consistent event segmentation. Short events below
         min_event_length are skipped and copied to 'skipped_frames' directory.
     """
-    # 1) build task list
     tasks = []
     for index, files in indexed_files.items():
         # parse & sort
@@ -3051,7 +2638,6 @@ def gif_generator_parallel(
                 min_event_length
             ))
 
-    # 2) dispatch pool
     all_logs = {}
     with ProcessPoolExecutor(max_workers=max_workers) as exe:
         future_to_task = {exe.submit(_process_event, t): t for t in tasks}
@@ -3059,15 +2645,12 @@ def gif_generator_parallel(
             log = future.result()
             all_logs.update(log)
 
-    # 3) single DataFrame update
     print("GIF Generation Completed, updating motion log")
     motion_log_df = motion_log_updater(motion_log_df, all_logs)
     return motion_log_df
 
 def create_html_from_gifs(base_directory, video_id, annotation_dictionary=annotation_dictionary, sorted_flag=True, skipped_files=True, auto_play=False):
     """
-    Generate interactive HTML annotation interface for motion event review.
-
     Creates self-contained HTML page displaying motion events as motion grid with
     interactive annotation controls, keyboard navigation, and CSV export. Supports
     light/dark themes with system preference detection and manual override.
@@ -3098,7 +2681,7 @@ def create_html_from_gifs(base_directory, video_id, annotation_dictionary=annota
     Notes:
         All annotations are stored in browser memory; users must export to CSV
         before closing or refreshing the page. The interface is optimised for
-        rapid annotation of large event datasets by ecological consultants.
+        rapid annotation of large datasets.
     """
     # Get list of GIF files in the directory
     static_gif_directory = os.path.join(base_directory, 'gifs')
@@ -3476,11 +3059,8 @@ def create_html_from_gifs(base_directory, video_id, annotation_dictionary=annota
 
 def pack_tar(base_dir, video_id, compress="gz", remove_original=False):
     """
-    Archive high-cardinality motion detection outputs.
-
     Consolidates motion frames, masks, and foreground images into compressed
-    archive to reduce inode pressure on storage systems. Particularly beneficial
-    for datasets with thousands of frames per video.
+    archives.
 
     Args:
         base_dir: Base directory containing video subdirectories
@@ -3545,8 +3125,6 @@ def archive_one(base_dir, video_id, **pack_opts):
     """
     Archive single video outputs.
 
-    Convenience wrapper for pack_tar enabling uniform interface with archive_all.
-
     Args:
         base_dir: Base directory containing video subdirectories
         video_id: Video identifier to archive
@@ -3560,10 +3138,6 @@ def archive_one(base_dir, video_id, **pack_opts):
 def archive_all(video_ids, base_dir, max_workers=2, **pack_opts):
     """
     Archive multiple video outputs in parallel.
-
-    Processes multiple videos concurrently using process pool, displaying progress
-    bar with success/error counts. Gracefully handles per-video failures without
-    terminating batch operation.
 
     Args:
         video_ids: List of video identifiers to archive
@@ -3625,35 +3199,22 @@ Parameter Tuning:
 
 Motion Extraction:
     `motion_extractor_kalman` runs per video, applying the tuned parameters, ROI
-    mask, and Kalman-Hungarian tracking. Bounding boxes are merged where necessary
-    and standardised to a minimum crop size (224 px) so contextual pixels are
-    retained for annotation. Crops, optional masks, and foreground cut-outs are
-    saved per frame with kinematic descriptors.
+    mask, and Kalman-Hungarian tracking. Bounding boxes are merged where necessary.
 
-Event Packaging:
+Annotation Interface:
     Frame crops are collated into GIFs via `gif_generator_parallel`;
     `motion_log_<video_id>.csv` stores per-frame detections (pixel and normalised
     YOLO coordinates) with timing and speed estimates; `<video_id>_event_metrics.csv`
     aggregates event-level duration and velocity statistics for reporting. HTML motion
-    grids are generated for annotation.
+    grids are generated for efficent annotation.
 
-Quality Control and Archiving:
+Logs and Archiving:
     Processing metadata and any decode warnings are appended to `log.txt` (per video)
     and `processing_log.csv` (batch-level). Optional `archive_all` compresses outputs
     for storage purposes.
-
-Per-Video Loop Order:
-    ROI mask (if enabled) → optional motion tuner → extraction and logging →
-    GIF/HTML creation → metric tables → optional archiving; console messages and
-    `log.txt` are the first place to check for issues.
 """
 
 # ===== Optional ROI selection and Motion Paramater Tuning ===== 
-# This interactive tuning interface allows users to optimise motion detection parameters
-# for their specific videos, as described in the paper's methodology ("tuned using annotated bat events").
-# The interface provides: 1) ROI selection via polygon drawing to exclude unwanted regions
-#                         2) Real-time parameter adjustment with live preview of motion detection results
-
 # Clean up any existing OpenCV windows from previous runs
 try:
     cv2.destroyAllWindows()

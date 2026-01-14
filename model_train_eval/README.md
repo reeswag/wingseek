@@ -18,16 +18,9 @@ Architecture
 ------------
 The model uses a CIFAR-style ResNet with:
 - No aggressive downsampling in the stem (suitable for small inputs)
-- Squeeze-and-Excitation blocks for channel attention (Hu et al., 2018)
+- Squeeze-and-Excitation blocks for channel attention
 - Global average pooling followed by dropout regularisation
 - Single softmax classification head
-
-References
-----------
-- He, K., et al. (2016). Deep Residual Learning for Image Recognition. CVPR.
-- Hu, J., et al. (2018). Squeeze-and-Excitation Networks. CVPR.
-- Loshchilov, I., & Hutter, F. (2017). SGDR: Stochastic Gradient Descent
-  with Warm Restarts. ICLR.
 
 Output
 ------
@@ -77,7 +70,7 @@ After training completes, the output directory will contain:
   - `class_weights.csv` - Computed class weights
   - `bat_threshold_oof.txt` - Calibrated threshold for bat detection
   - `optimal_epochs.txt` - Median optimal epochs across folds
-  - `cifar_report.csv` - CIFAR-10 pre-training results (if enabled)
+  - `cifar_report.csv` - CIFAR-10 pre-training results
 
 ## Data Format
 
@@ -145,8 +138,3 @@ python classification_training.py --help
 - matplotlib
 - seaborn
 - tqdm
-
-Install with:
-```bash
-pip install tensorflow scikit-learn pandas numpy matplotlib seaborn tqdm
-```

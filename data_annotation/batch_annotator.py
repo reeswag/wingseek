@@ -8,16 +8,6 @@ grid interface and organising them into class-specific directories for model
 training. The script reads annotation CSVs, applies label mapping rules, and
 copies frames and GIFs to a structured output directory.
 
-Key Features
-------------
-- Batch processing of multiple video directories
-- Flexible annotation dictionary via JSON configuration
-- Special handling for 'unclear' and 'shadow' notes
-- Optional exclusion of default-labelled sequences
-- Progress tracking with tqdm
-- Automatic directory structure creation
-- Both frame crops and GIF sequences copied to class folders
-
 Workflow
 --------
 1. Load motion_labels.csv from each video directory
@@ -41,8 +31,6 @@ Output (output_dir):
     motion_frames/<label>/             # Full frames organised by class
     crops/<label>/                     # Cropped frames organised by class
     gifs/<label>/                      # GIF sequences organised by class
-
-Date: 17/12/2025
 """
 
 import os
@@ -81,8 +69,6 @@ DEFAULT_FRAME_PAIRS = [
 
 def update_annotations(df, identifier, category_gifs, annotation_dict):
     """
-    Assign labels to DataFrame rows based on category membership.
-
     Takes a DataFrame and updates its 'label' column based on which
     sequences (gif_ids) appear in each category. Prints a summary of
     label distribution using human-readable names.
@@ -220,8 +206,7 @@ def copy_annotated_gifs(gif_df, input_dir, output_dir, default_label, exclude_de
 
     Notes
     -----
-    Currently only copies from 'gifs' subdirectory. Additional source
-    directories (fg_gifs, mask_gifs) can be enabled by uncommenting
+    Additional source directories (fg_gifs, mask_gifs) can be enabled by uncommenting
     the relevant pairs in the source code.
     """
     for _, row in gif_df.iterrows():
@@ -262,10 +247,6 @@ def process_video(video_id, analysis_dir, output_dir, annotation_dict,
     """
     Process annotations for a single video directory.
 
-    Orchestrates the complete workflow for one video: loading annotations,
-    applying label transformations, updating frame labels, and copying
-    organised files to output directories.
-
     Parameters
     ----------
     video_id : str
@@ -298,7 +279,7 @@ def process_video(video_id, analysis_dir, output_dir, annotation_dict,
     Notes
     -----
     Creates an updated CSV file (motion_log_<video_id>_updated.csv) with
-    propagated labels in the input directory.
+    the assigned labels in the input directory.
     """
     print(f"\n{'='*60}")
     print(f"Processing: {video_id}")
@@ -330,7 +311,7 @@ def process_video(video_id, analysis_dir, output_dir, annotation_dict,
     }
 
     # -------------------------------------------------------------------------
-    # PROCESS GIF LABELS
+    # PROCESS LABELS
     # -------------------------------------------------------------------------
     gif_dir = os.path.join(input_dir, "gifs")
     if not os.path.isdir(gif_dir):

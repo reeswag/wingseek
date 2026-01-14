@@ -6,7 +6,7 @@ Evaluates the bat detector with a pre-defined operational threshold, tracking wo
 
 This script assesses the performance of a trained bat detection model on a held-out test set that was not used during training or threshold calibration. It provides metrics for evaluating the model's ability to reduce manual review workload whilst maintaining high recall for bat detections.
 
-The operational threshold must be provided externally (from cross-validation or a separate calibration set) and is NOT derived from the holdout dataset itself.
+The operational threshold is calibrated externally and is NOT derived from the holdout dataset itself.
 
 ## Quick Start
 
@@ -96,7 +96,7 @@ Events are flagged as emergences if:
 
 ### Configuration File Parameters
 
-All parameters can be set via a `.ini` configuration file (see [example_holdout_config.ini](example_holdout_config.ini)) or command-line arguments. CLI arguments override config file values.
+All parameters can be set via a `.ini` configuration file. CLI arguments override config file values.
 
 #### Input Columns
 
@@ -298,8 +298,3 @@ Workload % = (Duration to review / Total video duration) × 100
 - numpy
 - matplotlib
 - scikit-learn
-
-Install with:
-```bash
-pip install pandas numpy matplotlib scikit-learn
-```

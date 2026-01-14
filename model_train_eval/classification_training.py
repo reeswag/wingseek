@@ -18,16 +18,9 @@ Architecture
 ------------
 The model uses a CIFAR-style ResNet with:
 - No aggressive downsampling in the stem (suitable for small inputs)
-- Squeeze-and-Excitation blocks for channel attention (Hu et al., 2018)
+- Squeeze-and-Excitation blocks for channel attention
 - Global average pooling followed by dropout regularisation
 - Single softmax classification head
-
-References
-----------
-- He, K., et al. (2016). Deep Residual Learning for Image Recognition. CVPR.
-- Hu, J., et al. (2018). Squeeze-and-Excitation Networks. CVPR.
-- Loshchilov, I., & Hutter, F. (2017). SGDR: Stochastic Gradient Descent
-  with Warm Restarts. ICLR.
 
 Usage
 -----
@@ -46,8 +39,6 @@ Output
 - Cross-validation metrics and confusion matrices
 - Threshold calibration analysis plots
 - Classification reports with standard deviations across folds
-
-Date: 17/12/2025
 """
 
 import os
@@ -168,10 +159,6 @@ def create_dataframe(data_dir, min_dimensions=None):
     ValueError
         If no valid images are found after applying filters.
     
-    Notes
-    -----
-    Uses TensorFlow for image decoding to ensure consistency with the
-    training pipeline. Only PNG files are processed.
     """
     print("Initialising dataframe...")
     records = []
@@ -247,10 +234,6 @@ def process_image(filepath, label, target_height, target_width, is_training):
     """
     Load, preprocess, and optionally augment a single image.
     
-    Implements a preprocessing pipeline suitable for small infrared
-    images from wildlife camera traps. Augmentations are conservative
-    to avoid destroying discriminative features in small crops.
-    
     Parameters
     ----------
     filepath : tf.Tensor
@@ -315,9 +298,6 @@ def create_tf_dataset(df, target_height, target_width, batch_size, is_training):
     """
     Create a tf.data.Dataset from a DataFrame of image paths and labels.
     
-    Implements an efficient data pipeline with parallel loading,
-    preprocessing, and prefetching.
-    
     Parameters
     ----------
     df : pd.DataFrame
@@ -359,7 +339,7 @@ def create_tf_dataset(df, target_height, target_width, batch_size, is_training):
 
 
 # =============================================================================
-# CIFAR-10 PRE-TRAINING UTILITIES
+# CIFAR-10 PRE-TRAINING
 # =============================================================================
 
 def _preprocess_cifar10_image(image, img_height, img_width):
@@ -451,11 +431,6 @@ def pretrain_on_cifar10(img_height=64, img_width=64, batch_size=CIFAR_PRETRAIN_B
                         epochs=CIFAR_PRETRAIN_EPOCHS, output_dir="."):
     """
     Pre-train the model backbone on grayscale CIFAR-10.
-    
-    This transfer learning approach initialises convolutional filters
-    with features learned from a larger dataset before fine-tuning on
-    the target task. CIFAR-10 is converted to grayscale to match the
-    single-channel infrared images.
     
     Parameters
     ----------
@@ -557,11 +532,6 @@ def se_block(inputs, reduction=16):
     tf.Tensor
         Recalibrated feature map with same shape as input.
     
-    References
-    ----------
-    Hu, J., Shen, L., & Sun, G. (2018). Squeeze-and-Excitation Networks.
-    In Proceedings of the IEEE Conference on Computer Vision and Pattern
-    Recognition (pp. 7132-7141).
     """
     filters = inputs.shape[-1]
     
@@ -584,7 +554,7 @@ def se_block(inputs, reduction=16):
 
 def basic_block(inputs, filters, strides=1, use_se=True, weight_decay=1e-4):
     """
-    CIFAR-style basic residual block with SE attention.
+    CIFAR-style basic residual block with SE.
     
     Parameters
     ----------
@@ -653,7 +623,7 @@ def create_resnet_classifier(input_shape=(64, 64, 1), initial_filters=32,
     Creates a compact ResNet architecture optimised for small input
     images typical of object detection crops. Unlike ImageNet-style
     ResNets, this variant:
-    - Uses 3x3 convolution in stem (no aggressive initial convolution: 7x7)
+    - Uses 3x3 convolution in stem
     - Omits initial max pooling
     
     Parameters
@@ -720,17 +690,13 @@ def create_resnet_classifier(input_shape=(64, 64, 1), initial_filters=32,
 
 
 # =============================================================================
-# CUSTOM METRICS
+# METRICS
 # =============================================================================
 
 class BatPRAUC(tf.keras.metrics.AUC):
     """
     Precision-Recall Area Under Curve for the bat class.
-    
-    Monitors PR-AUC specifically for the bat class during training,
-    used for early stopping and model selection where bat detection
-    is the primary objective of the classifier.
-    
+
     Parameters
     ----------
     bat_id : int, optional
@@ -800,11 +766,6 @@ def make_lr_schedule(total_epochs, warmup_epochs=None, initial_lr=FINE_TUNE_LR,
     -------
     callable
         Learning rate schedule function for LearningRateScheduler callback.
-    
-    References
-    ----------
-    Loshchilov, I., & Hutter, F. (2017). SGDR: Stochastic Gradient Descent
-    with Warm Restarts. In Proceedings of ICLR.
     """
     if warmup_epochs is None:
         warmup_epochs = max(1, int(0.1 * total_epochs))
@@ -870,7 +831,7 @@ def calculate_class_weights(df, bat_multiplier=2.0):
 
 
 # =============================================================================
-# TRANSFER LEARNING UTILITIES
+# TRANSFER LEARNING HELPERS
 # =============================================================================
 
 def load_pretrained_backbone_weights(model, weights_path):
@@ -975,10 +936,6 @@ def pick_optimal_threshold(y_true_int, p_bat, strategy='fbeta', beta=1.0,
     """
     Select optimal decision threshold for bat classification.
     
-    Offers multiple strategies for threshold selection depending on
-    the application requirements (e.g., maximising F-beta, achieving
-    minimum precision, or achieving minimum recall).
-    
     Parameters
     ----------
     y_true_int : np.ndarray
@@ -1082,8 +1039,6 @@ def pick_optimal_threshold(y_true_int, p_bat, strategy='fbeta', beta=1.0,
 
 def compute_multiclass_curves(y_true_int, y_prob, present_labels):
     """
-    Compute ROC and PR curves for multiclass classification.
-    
     Calculates per-class and micro averaged curves with
     corresponding AUC and AP scores.
     
@@ -1164,8 +1119,6 @@ def compute_multiclass_curves(y_true_int, y_prob, present_labels):
 def plot_threshold_analysis(y_true_int, p_bat, selected_threshold, output_path,
                            bat_id=BAT_ID, beta=2.0):
     """
-    Generate diagnostic plots for threshold selection.
-    
     Creates a 2x2 figure showing:
     - Probability distributions by true class
     - Precision-recall curve with operating point
@@ -1688,7 +1641,7 @@ def train_final_model(df_train, output_path, IMG_HEIGHT=64, IMG_WIDTH=64,
     )
     model = load_pretrained_backbone_weights(model, pretrained_weights)
 
-    # Optional head-only warmup
+    # head-only warmup
     run_head_start_phase(
         model, train_ds, None, class_weights,
         fine_tune_lr=FINE_TUNE_LR, epochs=HEAD_START_EPOCHS
@@ -1837,7 +1790,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # -------------------------------------------------------------------------
-    # OPTIONAL: CIFAR-10 PRE-TRAINING
+    # CIFAR-10 PRE-TRAINING
     # -------------------------------------------------------------------------
     pretrained_weights_path = None
     if PRETRAIN_ON_CIFAR10:
