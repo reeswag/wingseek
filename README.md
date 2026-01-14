@@ -1,6 +1,6 @@
 # Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
 
-This folder contains the end-to-end scripts used in the paper: Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
+This folder contains the code used in the paper: Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
 
 ## Pipeline Overview
 
