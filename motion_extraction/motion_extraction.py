@@ -2854,112 +2854,45 @@ def file_indexer(df):
         indexed_files[index].append(file_name) 
     return indexed_files
 
-# --- Pillow compatibility shims (older/newer versions) ---
-_HAS_ENUMS = hasattr(Image, "Resampling")
-RESAMPLE_LANCZOS = Image.Resampling.LANCZOS if _HAS_ENUMS else getattr(Image, "LANCZOS", Image.BICUBIC)
-RESAMPLE_BILINEAR = Image.Resampling.BILINEAR if _HAS_ENUMS else Image.BILINEAR
-DITHER_FS = Image.Dither.FLOYDSTEINBERG if _HAS_ENUMS else getattr(Image, "FLOYDSTEINBERG", 1)
-
-if hasattr(Image, "Quantize"):
-    MEDIANCUT = Image.Quantize.MEDIANCUT
-    LIBIMAGEQUANT = getattr(Image.Quantize, "LIBIMAGEQUANT", None)  # may be None if not built-in
-else:
-    MEDIANCUT = getattr(Image, "MEDIANCUT", 0)
-    LIBIMAGEQUANT = None
-
 def files_to_gif(input_directory, output_directory, files, gif_id,
                  fps=15, target_size=(224, 224), bg=(0, 0, 0)):
     """
-    Generate high-quality GIF from frame sequence.
-
-    Produces optimised animated GIF using Pillow with global palette quantisation,
-    Floyd-Steinberg dithering, and proper disposal mode to prevent inter-frame
-    artefacts. Alpha channels are composited to solid background as GIF format
-    does not support transparency.
-
-    Processing Pipeline:
-        1. Load frames and composite alpha to solid background
-        2. Resize to target dimensions using Lanczos interpolation
-        3. Build global 256-colour palette from sampled frames
-        4. Quantise all frames with shared palette and dithering
-        5. Save animated GIF with disposal=2 to prevent trails
-
-    Args:
-        input_directory: Directory containing input PNG frames
-        output_directory: Directory for output GIF and poster
-        files: List of frame filenames (without extension)
-        gif_id: Identifier for output files
-        fps: Playback frame rate (default: 15)
-        target_size: Output dimensions (width, height) (default: 224×224)
-        bg: Background RGB colour for alpha compositing (default: black)
-
-    Output Files:
-        {output_directory}/{gif_id}.gif: Animated GIF
-        {output_directory}/posters/{gif_id}.png: Static poster (first frame)
-
-    Notes:
-        Uses libimagequant for palette generation if available (superior quality);
-        falls back to median cut algorithm otherwise. Samples up to 120 frames
-        for palette generation to balance quality and memory usage.
+    Generate gifs from image sequences
     """
     os.makedirs(output_directory, exist_ok=True)
-    os.makedirs(os.path.join(output_directory, "posters"), exist_ok=True)
+    posters_dir = os.path.join(output_directory, "posters")
+    os.makedirs(posters_dir, exist_ok=True)
 
-    gif_filename = os.path.join(output_directory, f"{gif_id}.gif")
-    poster_filename = os.path.join(output_directory, "posters", f"{gif_id}.png")
+    gif_path = os.path.join(output_directory, f"{gif_id}.gif")
+    poster_path = os.path.join(posters_dir, f"{gif_id}.png")
 
-    if os.path.exists(gif_filename) and os.path.exists(poster_filename):
-        return
-
-    # 1) Load → composite alpha → RGB → resize (Lanczos)
-    frames_rgb = []
+    frames = []
     for name in files:
         p = os.path.join(input_directory, f"{name}.png")
         im = Image.open(p).convert("RGBA")
-        base = Image.new("RGBA", im.size, bg + (255,))
-        im = Image.alpha_composite(base, im).convert("RGB")
-        if im.size != target_size:
-            im = im.resize(target_size, RESAMPLE_LANCZOS)
-        frames_rgb.append(im)
 
-    if not frames_rgb:
+        base = Image.new("RGBA", im.size, (*bg, 255))
+        im = Image.alpha_composite(base, im).convert("RGB")
+
+        if im.size != target_size:
+            im = im.resize(target_size)
+
+        # convert to paletted frame for GIF
+        frames.append(im.convert("P", palette=Image.Palette.ADAPTIVE))
+
+    if not frames:
         return
 
-    # Save poster from full-colour RGB (avoid paletted artefacts)
-    frames_rgb[0].save(poster_filename, format="PNG")
+    frames[0].save(poster_path, "PNG")
 
-    # Global palette strategy: build single 256-colour palette from sampled frames
-    # This ensures temporal consistency (prevents colour flickering between frames)
-    # libimagequant uses perceptually-weighted quantisation for superior quality
-    if len(frames_rgb) > 120:
-        step = max(1, len(frames_rgb) // 120)
-        sample = frames_rgb[::step]
-    else:
-        sample = frames_rgb
-
-    # Create "sprite sheet" from sampled frames for palette generation
-    # Downsampling frames reduces memory whilst preserving colour distribution
-    tile_w, tile_h = 64, 64
-    sprite = Image.new("RGB", (tile_w * len(sample), tile_h))
-    for i, fr in enumerate(sample):
-        sprite.paste(fr.resize((tile_w, tile_h), RESAMPLE_BILINEAR), (i * tile_w, 0))
-
-    quant_method = LIBIMAGEQUANT if LIBIMAGEQUANT is not None else MEDIANCUT
-    global_palette_img = sprite.quantize(colors=256, method=quant_method)
-
-    # 3) Quantize every frame using the SAME palette + good dither
-    frames_p = [fr.quantize(palette=global_palette_img, dither=DITHER_FS) for fr in frames_rgb]
-
-    # 4) Save animated GIF with stable palette & correct disposal (no trails)
     duration_ms = int(round(1000 / fps))
-    frames_p[0].save(
-        gif_filename,
+    frames[0].save(
+        gif_path,
         save_all=True,
-        append_images=frames_p[1:],
+        append_images=frames[1:],
         loop=0,
         duration=duration_ms,
-        disposal=2,      # restore to background between frames
-        optimize=False   # keep palette order stable
+        disposal=2,
     )
 
 def motion_log_updater(motion_log_df, updates, chunk_size=50_000, show_progress=True):
