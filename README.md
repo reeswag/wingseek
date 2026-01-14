@@ -28,8 +28,5 @@ This folder contains the end-to-end scripts used in the paper: Vision-Based Bat 
 - Pillow
 - imageio
 
-### System tools
-- ffmpeg + ffprobe (required for `data_annotation/annotation_to_clip.py`)
-
 ### Optional
 - OpenCV with CUDA for GPU-accelerated motion extraction (otherwise CPU is used)
