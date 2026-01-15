@@ -1986,16 +1986,16 @@ def motion_extractor_kalman(
     annotation or downstream processing via deep learning models.
     
     Processing Pipeline:
-        1. Frame Acquisition: Sequential reading from video capture object
-        2. Background Subtraction: MOG2 generates binary foreground mask
-        3. Morphological Filtering: Opening and closing operations remove noise
-        4. Blob Detection: Connected component analysis via bb_gen function
-        5. Bounding Box Merging: IoU-based consolidation prevents duplicate tracks
-        6. Centroid Extraction: Bounding box centres serve as detection coordinates
-        7. Kalman Prediction: Each active track predicts position for current frame
-        8. Hungarian Matching: Optimal assignment between predictions and detections
-        9. State Update: Matched tracks update; unmatched detections initialise new tracks
-        10. Track Management: Terminate tracks exceeding unmatched threshold
+        1. Sequential reading from video capture object
+        2. MOG2 generates binary foreground mask
+        3. Opening and closing operations remove noise
+        4. Blob Detection
+        5. IoU-based consolidation prevents duplicate tracks
+        6. Bounding box centres serve as detection coordinates
+        7. Kalman prediction
+        8. ungarian matching
+        9. Matched tracks updated; unmatched detections initialise new tracks
+        10. Terminate tracks exceeding unmatched threshold
         11. Output Generation: Crop and save frames containing tracked objects
     
     The pipeline outputs both crops for bounding boxes and buffered crops for easier human annotation (default: 224×224
