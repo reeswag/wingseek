@@ -1,6 +1,6 @@
 # Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
 
-This folder contains the end-to-end scripts used in the paper: Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
+This folder contains the code used in the paper: Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
 
 ## Pipeline Overview
 
@@ -27,9 +27,6 @@ This folder contains the end-to-end scripts used in the paper: Vision-Based Bat 
 - tqdm
 - Pillow
 - imageio
-
-### System tools
-- ffmpeg + ffprobe (required for `data_annotation/annotation_to_clip.py`)
 
 ### Optional
 - OpenCV with CUDA for GPU-accelerated motion extraction (otherwise CPU is used)
