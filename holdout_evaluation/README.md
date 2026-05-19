@@ -8,6 +8,8 @@ This script assesses the performance of a trained bat detection model on a held-
 
 The operational threshold is calibrated externally and is NOT derived from the holdout dataset itself.
 
+A companion plotting script, `holdout_violin_plots.py`, visualises the distribution of aggregated bat probabilities across event-level aggregation methods for bat versus non-bat events.
+
 ## Quick Start
 
 
@@ -60,6 +62,9 @@ for metric in "${metrics[@]}"; do
       --video-total "$VIDEO_TOTAL" \
       --out-dir "$outdir"
 done
+
+python holdout_violin_plots.py \
+    holdout_evaluation.csv \
 ```
 
 ## Input Data Format
