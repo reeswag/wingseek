@@ -1,6 +1,6 @@
-# Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
+# Scaling bat roost surveys: automated event screening in near-infrared video
 
-This folder contains the code used in the paper: Vision-Based Bat Detection: A Hybrid Motion-Deep Learning Approach
+This folder contains the code used in the paper: Scaling bat roost surveys: automated event screening in near-infrared video
 
 ## Pipeline Overview
 
