@@ -1,0 +1,5 @@
+score_col,pooling_method,ap_all_sites_exploratory,roc_auc_all_sites_exploratory,n
+average_probability,Mean,0.6487105927429597,0.9799899698405858,26925
+median_probability,Median,0.6628157349075618,0.9730950107712191,26925
+max_probability,Maximum,0.7439909525405116,0.9809872641102972,26925
+top_frac_probability,Top-k (top 20%),0.8032446406390554,0.9850525807841448,26925

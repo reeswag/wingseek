@@ -1,0 +1,5 @@
+fold,held_out_site,selected_score_col,selected_pooling_method,selection_ap,selection_roc_auc,evaluation_ap,evaluation_roc_auc,evaluation_n,evaluation_bats,dropped_missing_selected_score
+1,11,top_frac_probability,Top-k (top 20%),0.8266329834945971,0.9888151169200962,0.759788315661605,0.9786938016114564,8753,172,0
+2,12,top_frac_probability,Top-k (top 20%),0.7459338339194711,0.9846562028747088,0.8886534123511071,0.985782169219837,5776,185,0
+3,21,top_frac_probability,Top-k (top 20%),0.794697463241936,0.9815420083729999,0.8345299572053935,0.990197716784066,3054,179,0
+4,6,top_frac_probability,Top-k (top 20%),0.8357904364118428,0.9854987724894038,0.765583291482141,0.9984761700563587,9342,14,0

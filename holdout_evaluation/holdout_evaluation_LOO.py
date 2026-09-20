@@ -1,4 +1,3 @@
- #!/usr/bin/env python3
 """
 Holdout Evaluation — Bat Detector Performance
 ================================================================
@@ -24,10 +23,17 @@ Inputs (CSV must have):
     - Event identifier column (default: file)
     - Ground-truth label column (default: label) [contains 'bat', 'bird', or other]
     - Free-text notes column (default: notes) for emergences
-    - Score column in [0,1] (default: average_probability)
     - duration_s: Event length in seconds (if missing, assumed 1.0)
 
+Score modes:
+    1. Single-score mode: set score_col to one probability column.
+    2. LOO pooling mode: leave score_col blank/omitted. The script compares
+       average_probability, median_probability, max_probability and
+       top_frac_probability using AP on N-1 sites, then evaluates the selected
+       pooling method on the omitted site.
+
 Outputs (in out_dir):
+    - In LOO mode: loo_pooling_selection_by_fold.csv, loo_pooling_stability.csv
     - threshold_metrics.csv (sweep over thresholds; for visualisation/ops planning)
     - roc.png, pr.png, workload_recall.png
     - review_composition_vs_threshold_events.png
@@ -381,6 +387,161 @@ def write_publication_tables(out_dir, cm_row, op_t, n, prev,
     print(f"Wrote: {csv_path}")
 
 
+
+# ---------------------- LOO pooling selection ----------------------
+
+POOLING_SCORE_COLUMNS = [
+    "average_probability",
+    "median_probability",
+    "max_probability",
+    "top_frac_probability",
+]
+
+POOLING_LABELS = {
+    "average_probability": "Mean",
+    "median_probability": "Median",
+    "max_probability": "Maximum",
+    "top_frac_probability": "Top-k (top 20%)",
+}
+
+def _score_metrics(d: pd.DataFrame, score_col: str):
+    """Threshold-free AP and ROC-AUC for one score column."""
+    scores = pd.to_numeric(d[score_col], errors="coerce")
+    mask = scores.notna()
+    if not mask.any():
+        return float("nan"), float("nan"), 0
+    y = (d.loc[mask, "truth_bin"].astype(str) == "bat").astype(int).values
+    s = scores.loc[mask].clip(0, 1).values
+    ap = float(average_precision_score(y, s)) if np.any(y == 1) else float("nan")
+    roc_auc = float("nan")
+    if len(np.unique(y)) == 2:
+        fpr, tpr, _ = roc_curve(y, s)
+        roc_auc = float(auc(fpr, tpr))
+    return ap, roc_auc, int(mask.sum())
+
+
+def run_loo_pooling_selection(df: pd.DataFrame, site_col: str, out_dir: str):
+    """
+    Select the pooling method by AP on N-1 sites, then apply that selected
+    method to the omitted site.
+
+    Only two LOO summary CSVs are written:
+      - loo_pooling_selection_by_fold.csv
+      - loo_pooling_stability.csv
+
+    Out-of-fold predictions are retained in memory because they are required
+    for the downstream threshold metrics, plots, and publication summaries.
+    """
+    if site_col not in df.columns:
+        raise ValueError(
+            f"LOO pooling mode requires site column '{site_col}'. "
+            f"Set [input] site_col in the INI or pass --site-col."
+        )
+
+    candidates = [c for c in POOLING_SCORE_COLUMNS if c in df.columns]
+    if len(candidates) < 2:
+        raise ValueError(
+            "LOO pooling mode requires at least two pooling score columns. "
+            f"Expected any of: {', '.join(POOLING_SCORE_COLUMNS)}. "
+            f"Found: {', '.join(candidates) if candidates else 'none'}."
+        )
+
+    sites = [x for x in pd.unique(df[site_col]) if pd.notna(x)]
+    if len(sites) < 2:
+        raise ValueError(f"LOO pooling mode requires >=2 sites; found {len(sites)}.")
+
+    print(f"\nLOO pooling selection across {len(sites)} sites")
+    print("Candidate pooling columns: " + ", ".join(candidates))
+    print("Selection metric: Average Precision (AP) on N-1 sites\n")
+
+    selection_rows = []
+    selected_methods = []
+    oof_parts = []
+
+    # Deterministic tie-break follows POOLING_SCORE_COLUMNS order.
+    order = {c: i for i, c in enumerate(POOLING_SCORE_COLUMNS)}
+
+    for fold_i, held_site in enumerate(sites, start=1):
+        select_df = df.loc[df[site_col] != held_site].copy()
+        eval_df = df.loc[df[site_col] == held_site].copy()
+
+        method_results = []
+        for c in candidates:
+            ap, roc_auc, n_valid = _score_metrics(select_df, c)
+            method_results.append((c, ap, roc_auc, n_valid))
+            selection_rows.append({
+                "fold": fold_i,
+                "held_out_site": held_site,
+                "score_col": c,
+                "pooling_method": POOLING_LABELS.get(c, c),
+                "selection_ap": ap,
+                "selection_roc_auc": roc_auc,
+                "selection_n": n_valid,
+            })
+
+        valid = [r for r in method_results if np.isfinite(r[1])]
+        if not valid:
+            raise ValueError(f"No finite AP values available when holding out site {held_site}.")
+
+        selected = sorted(valid, key=lambda r: (-r[1], order.get(r[0], 999)))[0]
+        selected_col, selection_ap, _, _ = selected
+        selected_methods.append(selected_col)
+
+        # Apply the method selected from the N-1 sites to the omitted site.
+        # These OOF scores are not written as a separate CSV; they feed the
+        # standard evaluation outputs later in the script.
+        eval_scores = pd.to_numeric(eval_df[selected_col], errors="coerce")
+        keep = eval_scores.notna()
+        dropped = int((~keep).sum())
+        eval_df = eval_df.loc[keep].copy()
+        eval_df["score"] = eval_scores.loc[keep].clip(0, 1).values
+        eval_df["loo_fold"] = fold_i
+        eval_df["held_out_site"] = held_site
+        eval_df["selected_score_col"] = selected_col
+        eval_df["selected_pooling_method"] = POOLING_LABELS.get(selected_col, selected_col)
+        oof_parts.append(eval_df)
+
+        if dropped:
+            print(f"Fold {fold_i}: held out {held_site} | selected "
+                  f"{POOLING_LABELS.get(selected_col, selected_col)} "
+                  f"(selection AP={selection_ap:.3f}) | dropped {dropped} missing held-out scores")
+        else:
+            print(f"Fold {fold_i}: held out {held_site} | selected "
+                  f"{POOLING_LABELS.get(selected_col, selected_col)} "
+                  f"(selection AP={selection_ap:.3f})")
+
+    selection_df = pd.DataFrame(selection_rows)
+    oof_df = pd.concat(oof_parts, axis=0).sort_index().copy()
+
+    # Rank methods within each fold and summarise selection stability.
+    selection_df["selection_rank"] = selection_df.groupby("fold")["selection_ap"].rank(
+        ascending=False, method="min"
+    )
+
+    stability = (
+        selection_df.groupby(["score_col", "pooling_method"], as_index=False)
+        .agg(
+            mean_selection_ap=("selection_ap", "mean"),
+            mean_selection_rank=("selection_rank", "mean"),
+        )
+    )
+    counts = pd.Series(selected_methods).value_counts().rename("times_selected")
+    stability["times_selected"] = stability["score_col"].map(counts).fillna(0).astype(int)
+    stability = stability.sort_values(
+        ["times_selected", "mean_selection_rank", "mean_selection_ap"],
+        ascending=[False, True, False],
+    )
+
+    # Only the two LOO reporting CSVs required for method-selection evidence.
+    selection_df.to_csv(
+        os.path.join(out_dir, "loo_pooling_selection_by_fold.csv"), index=False
+    )
+    stability.to_csv(
+        os.path.join(out_dir, "loo_pooling_stability.csv"), index=False
+    )
+
+    return oof_df, selection_df, stability
+
 # ---------------------- Configuration Loading ----------------------
 
 def load_config_from_ini(config_path):
@@ -406,7 +567,8 @@ def load_config_from_ini(config_path):
         'event_col': 'file',
         'label_col': 'label',
         'notes_col': 'notes',
-        'score_col': 'average_probability',
+        'score_col': None,
+        'site_col': 'site',
         'out_dir': 'output',
         'max_thresholds': 5000,
         'duration_baseline': 'events',
@@ -420,12 +582,15 @@ def load_config_from_ini(config_path):
         cfg['event_col'] = config.get('input', 'event_col', fallback=defaults['event_col'])
         cfg['label_col'] = config.get('input', 'label_col', fallback=defaults['label_col'])
         cfg['notes_col'] = config.get('input', 'notes_col', fallback=defaults['notes_col'])
-        cfg['score_col'] = config.get('input', 'score_col', fallback=defaults['score_col'])
+        raw_score_col = config.get('input', 'score_col', fallback='').strip()
+        cfg['score_col'] = raw_score_col if raw_score_col else None
+        cfg['site_col'] = config.get('input', 'site_col', fallback=defaults['site_col']).strip() or defaults['site_col']
     else:
         cfg['event_col'] = defaults['event_col']
         cfg['label_col'] = defaults['label_col']
         cfg['notes_col'] = defaults['notes_col']
         cfg['score_col'] = defaults['score_col']
+        cfg['site_col'] = defaults['site_col']
 
     # Evaluation section
     if config.has_section('evaluation'):
@@ -495,7 +660,9 @@ Example usage:
     parser.add_argument("--notes-col", type=str, default=None,
                        help="Free-text notes column for emergence detection")
     parser.add_argument("--score-col", type=str, default=None,
-                       help="Predicted probability column name")
+                       help="Predicted probability column name. If omitted/blank in config, run LOO pooling selection across standard pooling columns")
+    parser.add_argument("--site-col", type=str, default=None,
+                       help="Site/group column used for leave-one-site-out pooling selection (default: site)")
 
     # Evaluation parameters
     parser.add_argument("--recall-target", type=float, default=None,
@@ -583,6 +750,7 @@ def main():
         label_col=cfg['label_col'],
         notes_col=cfg['notes_col'],
         score_col=cfg['score_col'],
+        site_col=cfg['site_col'],
         out_dir=cfg['out_dir'],
         max_thresholds=cfg['max_thresholds'],
         duration_baseline=cfg['duration_baseline'],
@@ -597,7 +765,8 @@ def main():
     print("=" * 60)
     print(f"CSV file: {args.csv}")
     print(f"Threshold: {args.threshold}")
-    print(f"Score column: {args.score_col}")
+    print(f"Score column: {args.score_col if args.score_col else 'AUTO: LOO across pooling columns'}")
+    print(f"Site column: {args.site_col}")
     print(f"Duration baseline: {args.duration_baseline}")
     if args.video_total:
         print(f"Video total: {args.video_total}")
@@ -610,18 +779,52 @@ def main():
     raw = pd.read_csv(args.csv, low_memory=False)
     raw = clean_names(raw)
 
+    # score_col set => legacy single-score evaluation.
+    # score_col blank/omitted => LOO pooling selection across standard score columns.
+    loo_mode = args.score_col is None or str(args.score_col).strip() == ""
+    if loo_mode:
+        available = [c for c in POOLING_SCORE_COLUMNS if c in raw.columns]
+        if not available:
+            raise ValueError(
+                "score_col is blank, so LOO pooling mode was requested, but none of the standard "
+                f"pooling columns were found: {', '.join(POOLING_SCORE_COLUMNS)}"
+            )
+        mapping_score_col = available[0]
+    else:
+        mapping_score_col = str(args.score_col).lower()
+        if mapping_score_col not in raw.columns:
+            raise ValueError(f"Missing required score column: {mapping_score_col}")
+
     df = map_labels(raw,
                     label_col=args.label_col.lower(),
-                    score_col=args.score_col.lower(),
+                    score_col=mapping_score_col,
                     event_col=args.event_col.lower(),
                     notes_col=args.notes_col.lower())
 
-    # Drop rows without predictions in the score column
-    missing_scores = df["score"].isna()
-    if missing_scores.any():
-        miss_ct = int(missing_scores.sum())
-        df = df.loc[~missing_scores].copy()
-        print(f"[WARN] Dropping {miss_ct} rows with NA '{args.score_col.lower()}' (no prediction). Remaining events: {len(df)}")
+    if loo_mode:
+        # map_labels renames event column but otherwise retains all pooling columns.
+        df, loo_selection_df, loo_stability_df = run_loo_pooling_selection(
+            df=df,
+            site_col=args.site_col.lower(),
+            out_dir=args.out_dir,
+        )
+        print("\nPooling-selection stability:")
+        print(loo_stability_df.to_string(index=False))
+        selected_unique = int((loo_stability_df["times_selected"] > 0).sum())
+        if selected_unique > 1:
+            print("\n[WARN] Different pooling methods were selected across LOO folds. "
+                  "The combined out-of-fold AP/ROC-AUC estimates the performance of the "
+                  "pooling-selection procedure, not one fixed pooling method. Applying one "
+                  "operational threshold to mixed pooling scores assumes that threshold is "
+                  "appropriate across the selected score types.")
+    else:
+        # Legacy single-score mode: drop rows without predictions in chosen score column.
+        missing_scores = df["score"].isna()
+        if missing_scores.any():
+            miss_ct = int(missing_scores.sum())
+            df = df.loc[~missing_scores].copy()
+            print(f"[WARN] Dropping {miss_ct} rows with NA '{mapping_score_col}' (no prediction). Remaining events: {len(df)}")
+
     if df.empty:
         raise ValueError("All rows are missing scores; nothing to evaluate.")
 
@@ -648,7 +851,7 @@ def main():
         baseline_label = "events"
 
     video_total_hours = float(video_total_seconds) / 3600.0
-    print(f"Loaded {n} events. Positive prevalence = {percent(prev)}.")
+    print(f"Loaded {n} evaluation events. Positive prevalence = {percent(prev)}.")
     print(f"Event duration total = {event_total_hours:.3f} h | Video duration total = {video_total_hours:.3f} h "
           f"(baseline for duration fractions: {baseline_label})")
 

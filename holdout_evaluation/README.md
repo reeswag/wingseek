@@ -1,305 +1,367 @@
 # Holdout Evaluation
 
-Evaluates the bat detector with a pre-defined operational threshold, tracking workload reduction and emergence recall on independent holdout data.
+Evaluates bat-detector performance on independent holdout data using a pre-defined operational threshold.
 
-## Overview
+The script can either:
 
-This script assesses the performance of a trained bat detection model on a held-out test set that was not used during training or threshold calibration. It provides metrics for evaluating the model's ability to reduce manual review workload whilst maintaining high recall for bat detections.
+* select the event-level probability aggregation method using leave-one-site-out (LOO) validation, or
+* evaluate one fixed score column directly.
 
-The operational threshold is calibrated externally and is NOT derived from the holdout dataset itself.
+The operational threshold is supplied externally and is **not derived from the holdout dataset**.
 
-A companion plotting script, `holdout_violin_plots.py`, visualises the distribution of aggregated bat probabilities across event-level aggregation methods for bat versus non-bat events.
+---
 
-## Quick Start
+## LOO approach
 
+If `score_col` is left blank, the script compares:
 
-#### With Configuration File
+* `average_probability`
+* `median_probability`
+* `max_probability`
+* `top_frac_probability`
+
+For each site:
+
+1. The site is held out.
+2. Average Precision (AP) is calculated for each aggregation method using the remaining N-1 sites.
+3. The method with the highest AP is selected.
+4. That method is applied to the held-out site.
+5. The process is repeated for every site.
+
+The held-out predictions are then combined internally and used for the final ROC/PR curves, threshold analysis, workload analysis and summary metrics.
+
+ROC-AUC is also reported during method comparison, but **AP is used for method selection**.
+
+---
+
+## Reproducing the reported results
+
+The reported holdout results can be reproduced using the supplied input CSV and configuration file:
 
 ```bash
-# Using config file
-python holdout_evaluation.py \
-    --config holdout_evaluation.ini
+python holdout_evaluation_LOO.py \
+    --config holdout_config_loo.ini \
+    --csv holdout_evaluation_LOO.csv \
+    --threshold 0.404
 ```
-#### With CLI Arguments Only
+
+This runs the leave-one-site-out aggregation-method selection described above and writes all reported tables, CSV files and figures to the output directory specified in holdout_config_loo.ini.
+
+The operational threshold of `0.404` was determined independently of the holdout dataset and is supplied here for evaluation.
+
+### CLI only
 
 ```bash
-# With video duration baseline
-python holdout_evaluation.py \
-    --csv holdout_evaluation.csv \
+python holdout_evaluation_LOO.py \
+    --csv holdout_evaluation_LOO.csv \
     --threshold 0.404 \
+    --site-col site \
     --duration-baseline videos \
-    --video-total "41h26m44s" \
-    --out-dir results/holdout
+    --video-total "41:26:44" \
+    --out-dir output
 ```
 
-#### Paper Results Reproduction
+To evaluate a fixed aggregation method instead of using LOO:
+
 ```bash
-CSV="holdout_evaluation.csv"
-SCRIPT="holdout_evaluation.py"
-BASE_OUT="./results/"
-
-# --------- Common args ----------
-DURATION_BASELINE="videos"
-VIDEO_TOTAL="41:26:44"
-THRESHOLD=0.404
-
-metrics=(average_probability median_probability min_probability max_probability top_frac_probability)
-
-
-for metric in "${metrics[@]}"; do
-    outdir="${BASE_OUT}/${metric}/"
-    mkdir -p "$outdir"
-
-    echo ">>> Running ${metric} => ${outdir}"
-    python3 "$SCRIPT" \
-      --csv "$CSV" \
-      --event-col file \
-      --label-col label \
-      --notes-col notes \
-      --threshold $THRESHOLD \
-      --score-col "$metric" \
-      --duration-baseline "$DURATION_BASELINE" \
-      --video-total "$VIDEO_TOTAL" \
-      --out-dir "$outdir"
-done
-
-python holdout_violin_plots.py \
-    holdout_evaluation.csv \
+python holdout_evaluation_LOO.py \
+    --csv holdout_evaluation_LOO.csv \
+    --threshold 0.404 \
+    --score-col top_frac_probability
 ```
 
-## Input Data Format
+---
+
+## Example configuration
+
+```ini
+[input]
+event_col = file
+site_col = site
+label_col = label
+notes_col = notes
+
+# Leave blank for LOO pooling selection
+score_col =
 
 
-### Required Columns
-
-| Column | Description | Example Values |
-|--------|-------------|----------------|
-| Event identifier | Unique event ID | `video_001.mp4`, `frame_042` |
-| Label | Ground truth class | `bat`, `bird`, `other`, `human` |
-| Score | Predicted bat probability [0,1] | `0.85`, `0.23` |
-
-### Optional Columns
-
-| Column | Description | Default |
-|--------|-------------|---------|
-| `notes` | Text annotations, here used to highlight emergence events | Empty string |
-| `duration_s` | Event duration in seconds | `1.0` |
+[evaluation]
+max_thresholds = 5000
 
 
-## Ground Truth Label Handling
-
-### Binary Classification
-- **Positive class**: Any event labelled as "bat"
-- **Negative class**: All other events (bird, human, other)
-
-### Emergence Detection
-Events are flagged as emergences if:
-1. The ground truth label is "bat", AND
-2. The notes field contains emergence-related text
-
-## Configuration Options
-
-### Configuration File Parameters
-
-All parameters can be set via a `.ini` configuration file. CLI arguments override config file values.
-
-#### Input Columns
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `event_col` | Event identifier column name | `file` |
-| `label_col` | Ground truth label column name | `label` |
-| `notes_col` | Free-text notes column name | `notes` |
-| `score_col` | Predicted probability column name | `top_frac_probability` |
-
-#### Evaluation Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `max_thresholds` | Max threshold points for curves | `5000` |
-
-#### Output
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `out_dir` | Output directory for results | `output` |
-
-#### Duration Baseline
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `baseline` | Workload denominator (events/videos) | `videos` |
-| `video_total` | Total video duration (required if baseline=videos) | None |
-
-## Command-Line Arguments
-
-### Required Arguments
-
-**`--config PATH`** (optional but recommended)
-- Path to `.ini` configuration file
-- Provides default values that can be overridden via CLI
-- Example: `--config my_holdout_config.ini`
-
-**`--csv PATH`**
-- Path to input CSV file with predictions and ground truth
-- Must contain columns for events, labels, scores, and optionally notes/durations
-
-**`--threshold FLOAT`**
-- Operational threshold for bat classification (0.0 to 1.0)
-- Should be derived from cross-validation or separate calibration set
-- Events with `score >= threshold` are classified as "bat"
-- Example: `--threshold 0.40`
-
-### Optional Arguments
-
-**`--event-col NAME`** (default: `file`)
-- Name of column containing event identifiers
-- Example: `--event-col filename`
-
-**`--label-col NAME`** (default: `label`)
-- Name of column containing ground truth labels
-- Example: `--label-col ground_truth`
-
-**`--score-col NAME`** (default: `average_probability`)
-- Name of column containing predicted bat probabilities
-- Must contain values in range [0, 1]
-- Example: `--score-col bat_score`
-
-**`--notes-col NAME`** (default: `notes`)
-- Name of column containing free-text annotations
-- Used only for emergence detection
-- Example: `--notes-col comments`
-
-**`--out-dir PATH`** (default: `output`)
-- Directory where all results will be saved
-- Created automatically if it doesn't exist
-- Example: `--out-dir results/experiment_001`
-
-**`--max-thresholds INT`** (default: `5000`)
-- Maximum number of threshold points for curve generation
-- Reduces computation time for very large datasets
-- Example: `--max-thresholds 1000`
-
-### Duration Baseline Arguments
-
-**`--duration-baseline CHOICE`** (default: `events`)
-- Method for calculating duration-based workload reduction
-- Choices:
-  - `events`: Use sum of event durations as denominator (100% = review all detected events)
-  - `videos`: Use total source video duration as denominator (100% = review all footage)
-- Example: `--duration-baseline videos`
-
-**`--video-total DURATION`** (default: `None`)
-- Total source video duration (required when `--duration-baseline videos`)
-- Accepts multiple formats:
-  - `HH:MM:SS` — e.g., `41:26:44`
-  - `MM:SS` — e.g., `90:30`
-  - Time with units — e.g., `41h26m44s`, `41h 26m 44s`, `90m`, `1.5h`
-  - Seconds — e.g., `149204` (plain number)
-- Examples:
-  - `--video-total "41:26:44"`
-  - `--video-total "41h26m44s"`
-  - `--video-total 149204`
-
-## Output Files
-
-All outputs are saved to the directory specified by `--out-dir`:
-
-### Metrics and Data
-
-**`threshold_metrics.csv`**
-- Complete threshold sweep from 0.0 to 1.0
-- Contains metrics at each threshold for downstream analysis
-- Columns:
-  - `threshold`: Classification threshold value
-  - `tp`, `fp`, `fn`, `tn`: Confusion matrix counts
-  - `precision`, `recall`, `specificity`, `f1`, `f2`: Classification metrics
-  - `events_to_review`, `pct_events_to_review`: Event-based workload
-  - `duration_to_review_s`, `pct_duration_to_review`: Duration-based workload
-  - `emergence_recall`: Recall specifically for emergence events
-
-**`summary_table.csv` / `.md` / `.tex`**
-- Summary metrics at the operational threshold
-- Available in three formats:
-  - CSV: Machine-readable tabular format
-  - Markdown: Human-readable table for documentation
-  - LaTeX: Publication-ready table
-
-### Visualisations
-
-**`roc.png`**
-- ROC curve (Receiver Operating Characteristic)
-- Shows trade-off between true positive rate and false positive rate
-- Includes AUC (Area Under Curve) score
-- Threshold-free visualisation (does not depend on operational threshold)
-
-**`pr.png`**
-- Precision-Recall curve
-- Shows trade-off between precision and recall
-- Includes AP (Average Precision) score
-- More informative than ROC for imbalanced datasets
-
-**`workload_recall.png`**
-- Dual-panel plot showing:
-  - Left: Event-based workload reduction vs recall
-  - Right: Duration-based workload reduction vs recall
-- Shows operating point at the specified threshold
-
-**Review Composition Plots:**
-
-**`review_composition_vs_threshold_events.png`**
-- Stacked area chart showing composition of review queue by event count
-- X-axis: Threshold value (0 to 1)
-- Y-axis: Absolute number of events to review
-- Coloured areas: bat, bird, other_not_bat
-
-**`review_composition_vs_threshold_duration.png`**
-- Same as above but using duration (seconds) instead of event count
-
-**`review_composition_at_operating_point_events.png`**
-- Stacked bar chart at the operational threshold (event count)
-- Shows absolute counts and percentages for each subtype
-
-**`review_composition_at_operating_point_duration.png`**
-- Same as above but using duration instead of event count
+[output]
+out_dir = output
 
 
-## Understanding Workload Metrics
-
-### Event-Based Workload
-
-**Definition:** Fraction of detected events that must be manually reviewed
-
-**Calculation:**
+[duration]
+baseline = videos
+video_total = 41:26:44
 ```
-Events to review = Number of events with score >= threshold
-Workload % = (Events to review / Total events) × 100
-```
-### Duration-Based Workload
 
-**Two modes available:**
+---
 
-#### Mode 1: Events Baseline (default)
-```
-Duration to review = Sum of durations for events with score >= threshold
-Workload % = (Duration to review / Total event duration) × 100
-```
-- Denominator = sum of all event durations
-- 100% = review all detected events
+## Input data
 
-#### Mode 2: Videos Baseline
+### Required columns
+
+| Column  | Description                         |
+| ------- | ----------------------------------- |
+| `file`  | Unique event identifier             |
+| `site`  | Independent site/group used for LOO |
+| `label` | Ground-truth class                  |
+
+### LOO probability columns
+
+At least two of the following must be present:
+
+| Column                 | Aggregation |
+| ---------------------- | ----------- |
+| `average_probability`  | Mean        |
+| `median_probability`   | Median      |
+| `max_probability`      | Maximum     |
+| `top_frac_probability` | Top 20%     |
+
+### Optional columns
+
+| Column       | Description                       |
+| ------------ | --------------------------------- |
+| `notes`      | Used to identify emergence events |
+| `duration_s` | Event duration in seconds         |
+
+If `duration_s` is missing, a duration of 1 second is assumed.
+
+---
+
+## Ground-truth handling
+
+Events are treated as:
+
+* **bat** — positive class
+* **not bat** — all other labels
+
+Non-bat events are also divided into:
+
+* bird
+* other
+
+An event is treated as an emergence when it is labelled as a bat and the `notes` field contains an emergence-related term such as `emergence` or `emerging`.
+
+---
+
+## Operational threshold
+
+The operational threshold is supplied with:
+
+```bash
+--threshold 0.404
 ```
-Duration to review = Sum of durations for events with score >= threshold
-Workload % = (Duration to review / Total video duration) × 100
+
+Events are classified as:
+
+```text
+score >= threshold  -> send to review
+score < threshold   -> auto-discard
 ```
-- Denominator = total source video footage
-- 100% = review entire video corpus
-- Requires `--video-total` argument
+
+The threshold should be calibrated independently of the holdout dataset.
+
+---
+
+## Main configuration options
+
+| Parameter        | Description                                | Default  |
+| ---------------- | ------------------------------------------ | -------- |
+| `event_col`      | Event identifier                           | `file`   |
+| `site_col`       | Site/group for LOO                         | `site`   |
+| `label_col`      | Ground-truth label                         | `label`  |
+| `notes_col`      | Notes column                               | `notes`  |
+| `score_col`      | Fixed score column; blank activates LOO    | blank    |
+| `max_thresholds` | Maximum threshold points                   | `5000`   |
+| `out_dir`        | Output directory                           | `output` |
+| `baseline`       | Duration denominator: `events` or `videos` | `events` |
+| `video_total`    | Total source-video duration                | None     |
+
+CLI arguments override values in the configuration file.
+
+---
+
+# Outputs
+
+In LOO mode the script produces:
+
+```text
+output/
+├── loo_pooling_selection_by_fold.csv
+├── loo_pooling_stability.csv
+├── threshold_metrics.csv
+├── summary_table.csv
+├── summary_table.md
+├── summary_table.tex
+├── roc.png
+├── pr.png
+├── workload_recall.png
+├── review_composition_vs_threshold_events.png
+├── review_composition_vs_threshold_duration.png
+├── review_composition_at_operating_point_events.png
+└── review_composition_at_operating_point_duration.png
+```
+
+---
+
+## LOO outputs
+
+### `loo_pooling_selection_by_fold.csv`
+
+Shows the performance of every candidate aggregation method for every LOO fold.
+
+Includes:
+
+* `fold`
+* `held_out_site`
+* `score_col`
+* `pooling_method`
+* `selection_ap`
+* `selection_roc_auc`
+* `selection_n`
+* `selection_rank`
+
+This is the main output showing how the aggregation method was selected independently of the held-out site.
+
+### `loo_pooling_stability.csv`
+
+Summarises aggregation-method selection across folds.
+
+Includes:
+
+* `score_col`
+* `pooling_method`
+* `mean_selection_ap`
+* `mean_selection_rank`
+* `times_selected`
+
+The held-out event predictions are used internally but are not written to a separate CSV.
+
+---
+
+## Performance outputs
+
+### `threshold_metrics.csv`
+
+Contains threshold-specific metrics including:
+
+* TP, FP, TN and FN
+* recall
+* specificity
+* accuracy
+* balanced accuracy
+* MCC
+* event workload reduction
+* duration workload reduction
+* review composition
+* emergence recall
+
+### `summary_table.csv`, `.md`, `.tex`
+
+Summary of performance at the supplied operational threshold, including:
+
+* ROC AUC
+* Average Precision
+* recall
+* specificity
+* balanced accuracy
+* MCC
+* workload reduction
+* review composition
+* Brier score
+* emergence recall
+
+---
+
+## Figures
+
+### `roc.png`
+
+ROC curve and ROC AUC.
+
+### `pr.png`
+
+Precision–Recall curve and Average Precision.
+
+### `workload_recall.png`
+
+Recall versus percentage of events or duration automatically discarded.
+
+### `review_composition_vs_threshold_events.png`
+
+Composition of the review queue across thresholds by event count.
+
+### `review_composition_vs_threshold_duration.png`
+
+Composition of the review queue across thresholds weighted by event duration.
+
+### `review_composition_at_operating_point_events.png`
+
+Review composition at the operational threshold by event count.
+
+### `review_composition_at_operating_point_duration.png`
+
+Review composition at the operational threshold weighted by duration.
+
+---
+
+## Workload metrics
+
+### Event-based
+
+```text
+Review fraction =
+events sent to review / total events
+
+Scrubbed fraction =
+1 - review fraction
+```
+
+### Duration-based
+
+With:
+
+```ini
+baseline = events
+```
+
+the denominator is the summed duration of all detected events.
+
+With:
+
+```ini
+baseline = videos
+```
+
+the denominator is the total duration of the original source videos.
+
+---
+
+## Violin plots
+
+A companion script, `holdout_violin_plots.py`, can be used to visualise the distribution of aggregated bat probabilities for bat versus non-bat events across the different aggregation methods.
+
+Run with:
+
+```bash
+python holdout_violin_plots.py holdout_evaluation_LOO.csv
+```
+---
 
 ## Requirements
 
-- Python 3.9+
-- pandas
-- numpy
-- matplotlib
-- scikit-learn
+* Python 3.9+
+* pandas
+* numpy
+* matplotlib
+* scikit-learn
+
+Install with:
+
+```bash
+pip install pandas numpy matplotlib scikit-learn
+```

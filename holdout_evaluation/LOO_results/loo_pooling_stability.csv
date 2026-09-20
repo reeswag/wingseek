@@ -1,0 +1,5 @@
+score_col,pooling_method,mean_selection_ap,mean_selection_rank,times_selected
+top_frac_probability,Top-k (top 20%),0.8007636792669618,1.0,4
+max_probability,Maximum,0.7405760462500068,2.0,0
+median_probability,Median,0.659246418124777,3.25,0
+average_probability,Mean,0.6461828191434168,3.75,0
